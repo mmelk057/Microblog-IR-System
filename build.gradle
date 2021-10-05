@@ -20,6 +20,11 @@ repositories {
     jcenter()
 }
 
+apply plugin: "java"
+ext {
+    javaMainClass = "io.inforet.microblog.App"
+}
+
 dependencies {
     // This dependency is used by the application.
     implementation 'com.google.guava:guava:29.0-jre'
@@ -30,5 +35,5 @@ dependencies {
 
 application {
     // Define the main class for the application.
-    mainClassName = 'io.inforet.microblog.App'
+    mainClassName = javaMainClass
 }
