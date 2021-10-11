@@ -38,11 +38,22 @@ public class App {
         List<Query> parsedQueries = (List<Query>) loadFileEntries(TREC_QUERIES, TRECTools::parseQueries);
         Set<String> stopWords = (Set<String>) loadFileEntries(STOP_WORDS, TRECTools::parseStopWords);
         MicroblogTokenizer tokenizer = new MicroblogTokenizer();
+        InvertedIndex index = new InvertedIndex();
+
+
         for (InfoDocument document: parsedDocuments) {
             String[] tokens = tokenizer.tokenizeDocument(document.getDocument());
-            /**
-             * TODO: Build Inverted Index Structure
-             */
-        }
+            String[] id = tokenizer.tokenizeDocument(document.getID());
+            //get the document id
+            String idNumber = id[0];
+            for(String word: tokens){
+                //Do not add stopwords to the inverted index
+                if(!stopWords.contains(word)){
+                    index.addToken(word,idNumber);
+                }
+                
+            }           
+        }       
     }
+    
 }
