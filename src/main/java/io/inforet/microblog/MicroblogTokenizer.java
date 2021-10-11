@@ -15,9 +15,11 @@ import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.UnsupportedEncodingException;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.URL;
+import java.net.URLDecoder;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -61,13 +63,18 @@ public class MicroblogTokenizer {
         if (fullModelPath == null) {
             return null;
         }
-        try (InputStream modelInput = new FileInputStream(fullModelPath.getPath())) {
-            TokenizerModel model = new TokenizerModel(modelInput);
-            return new TokenizerME(model);
-        } catch (FileNotFoundException ex) {
-            throw new IllegalArgumentException(String.format("Failed to locate tokenizer model path: '%s'", fullModelPath.getPath()));
-        } catch (IOException ex) {
-            throw new IllegalArgumentException(String.format("Failed to read input from tokenizer model: '%s'. Cause: '%s'", fullModelPath.getPath(), ex.getCause().getMessage()));
+        try {
+            String decodedPath = URLDecoder.decode(fullModelPath.getPath(), "UTF-8");
+            try (InputStream modelInput = new FileInputStream(decodedPath)) {
+                TokenizerModel model = new TokenizerModel(modelInput);
+                return new TokenizerME(model);
+            } catch (FileNotFoundException ex) {
+                throw new IllegalArgumentException(String.format("Failed to locate tokenizer model path: '%s'", fullModelPath.getPath()));
+            } catch (IOException ex) {
+                throw new IllegalArgumentException(String.format("Failed to read input from tokenizer model: '%s'. Cause: '%s'", fullModelPath.getPath(), ex.getCause().getMessage()));
+            }
+        } catch (UnsupportedEncodingException ex) {
+            throw new IllegalArgumentException(String.format("Failed to decode the following URL: '%s'", fullModelPath.getPath()));
         }
     }
 
@@ -76,13 +83,18 @@ public class MicroblogTokenizer {
         if (fullModelPath == null) {
             return null;
         }
-        try (InputStream modelInput = new FileInputStream(fullModelPath.getPath())) {
-            TokenNameFinderModel model = new TokenNameFinderModel(modelInput);
-            return new NameFinderME(model);
-        } catch (FileNotFoundException ex) {
-            throw new IllegalArgumentException(String.format("Failed to locate token name finder path: '%s'", fullModelPath.getPath()));
-        } catch (IOException ex) {
-            throw new IllegalArgumentException(String.format("Failed to read input from token name finder model: '%s'. Cause '%s'", fullModelPath.getPath(), ex.getCause().getMessage()));
+        try {
+            String decodedPath = URLDecoder.decode(fullModelPath.getPath(), "UTF-8");
+            try (InputStream modelInput = new FileInputStream(decodedPath)) {
+                TokenNameFinderModel model = new TokenNameFinderModel(modelInput);
+                return new NameFinderME(model);
+            } catch (FileNotFoundException ex) {
+                throw new IllegalArgumentException(String.format("Failed to locate token name finder path: '%s'", fullModelPath.getPath()));
+            } catch (IOException ex) {
+                throw new IllegalArgumentException(String.format("Failed to read input from token name finder model: '%s'. Cause '%s'", fullModelPath.getPath(), ex.getCause().getMessage()));
+            }
+        } catch (UnsupportedEncodingException ex) {
+            throw new IllegalArgumentException(String.format("Failed to decode the following URL: '%s'", fullModelPath.getPath()));
         }
     }
 
