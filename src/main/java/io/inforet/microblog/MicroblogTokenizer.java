@@ -6,6 +6,7 @@ import opennlp.tools.namefind.TokenNameFinderModel;
 import opennlp.tools.tokenize.Tokenizer;
 import opennlp.tools.tokenize.TokenizerME;
 import opennlp.tools.tokenize.TokenizerModel;
+import opennlp.tools.util.Span;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.apache.commons.lang3.tuple.Pair;
@@ -18,8 +19,11 @@ import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.URL;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
+import java.util.Objects;
+import java.util.stream.Collectors;
 
 public class MicroblogTokenizer {
 
@@ -123,9 +127,7 @@ public class MicroblogTokenizer {
             strippedTokens.add(strippedToken);
         }
 
-
-
-        return strippedTokens.toArray(new String[0]);
+        return namedEntityRecognition(strippedTokens.toArray(new String[0]), 0.8);
     }
 
     /**
@@ -133,11 +135,55 @@ public class MicroblogTokenizer {
      * Each recognition is complimented with a probability - the probability threshold is intended
      * to filter out recognitions that are below this certainty boundary.
      * Each recognition that meets or exceeds the boundary modifies the token context (coalescing of tokens)
+     * @param tokens List of reference tokens to seek named entities from
      * @param probabilityThreshold 0 <= value <= 1
      * @return List of tokens
      */
     private String[] namedEntityRecognition(String[] tokens, double probabilityThreshold) {
-        return null;
+        TokenNameFinder[] nameFinders = { personsNamedEntityFinder, locationNamedEntityFinder, orgNamedEntityFinder };
+        String[] coalescedTokens = Arrays.stream(tokens).toArray(String[]::new);
+
+        List<Span> foundEntities = new ArrayList<>();
+        for(TokenNameFinder nameFinder: nameFinders) {
+            foundEntities.addAll(Arrays.stream(nameFinder.find(coalescedTokens)).collect(Collectors.toList()));
+        }
+        // SORT the named entities by probabilities in DESCENDING ORDER
+        foundEntities.sort((e1,e2) -> {
+            if (e1.getProb() < e2.getProb()) {
+                return 1;
+            } else if (e1.getProb() == e2.getProb()) {
+                return 0;
+            }
+            return -1;
+        });
+
+        for (Span foundEntity: foundEntities) {
+
+            if (foundEntity.getProb() < probabilityThreshold) {
+                break;
+            }
+
+            List<String> coalescedTokenComponents = new ArrayList<>();
+            for (int i = foundEntity.getStart(); i < foundEntity.getEnd(); i++) {
+                // INDICATES THAT THE POSITION HAS BEEN OCCUPIED BY ANOTHER NAMED ENTITY
+                if (coalescedTokens[i] == null) {
+                    coalescedTokenComponents = null;
+                    break;
+                }
+                coalescedTokenComponents.add(coalescedTokens[i]);
+            }
+
+            if (coalescedTokenComponents != null) {
+                coalescedTokens[foundEntity.getStart()] = String.join(StringUtils.SPACE, coalescedTokenComponents);
+                for (int i = foundEntity.getStart() + 1; i < foundEntity.getEnd(); i++) {
+                    coalescedTokens[i] = null;
+                }
+            }
+
+        }
+
+        return Arrays.stream(coalescedTokens)
+                        .filter(Objects::nonNull).toArray(String[]::new);
     }
 
     /**

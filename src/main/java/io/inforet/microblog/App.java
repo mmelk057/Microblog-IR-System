@@ -2,6 +2,7 @@ package io.inforet.microblog;
 
 import io.inforet.microblog.entities.InfoDocument;
 import io.inforet.microblog.entities.Query;
+
 import java.net.URL;
 import java.util.Collection;
 import java.util.LinkedList;
@@ -37,7 +38,11 @@ public class App {
         List<Query> parsedQueries = (List<Query>) loadFileEntries(TREC_QUERIES, TRECTools::parseQueries);
         Set<String> stopWords = (Set<String>) loadFileEntries(STOP_WORDS, TRECTools::parseStopWords);
         MicroblogTokenizer tokenizer = new MicroblogTokenizer();
-        String[] tokens = tokenizer.tokenizeDocument("http://www.service.tradepad.net/company-2743-toplink-campc-corp.html #service TOPLINK C&C CORP");
-
+        for (InfoDocument document: parsedDocuments) {
+            String[] tokens = tokenizer.tokenizeDocument(document.getDocument());
+            /**
+             * TODO: Build Inverted Index Structure
+             */
+        }
     }
 }
