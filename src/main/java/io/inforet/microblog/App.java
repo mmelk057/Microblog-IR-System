@@ -36,5 +36,8 @@ public class App {
         List<InfoDocument> parsedDocuments = (List<InfoDocument>) loadFileEntries(TREC_DATASET, TRECTools::parseCollection);
         List<Query> parsedQueries = (List<Query>) loadFileEntries(TREC_QUERIES, TRECTools::parseQueries);
         Set<String> stopWords = (Set<String>) loadFileEntries(STOP_WORDS, TRECTools::parseStopWords);
+        MicroblogTokenizer tokenizer = new MicroblogTokenizer();
+        String[] tokens = tokenizer.tokenizeDocument("http://www.service.tradepad.net/company-2743-toplink-campc-corp.html #service TOPLINK C&C CORP");
+
     }
 }

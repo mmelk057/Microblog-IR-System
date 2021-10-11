@@ -8,7 +8,6 @@ import org.w3c.dom.Node;
 import org.w3c.dom.NodeList;
 import org.xml.sax.SAXException;
 
-import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
 import javax.xml.parsers.ParserConfigurationException;
 import java.io.BufferedReader;
@@ -23,15 +22,6 @@ import java.util.Set;
 import java.util.TreeSet;
 
 public class TRECTools {
-
-    /**
-     * Returns a list of tokens from the provided document content
-     * @param document Represented as a document-unit (i.e, sentence, paragraph, chapter, etc.)
-     * @return List of tokens
-     */
-    public static List<String> tokenDocument(String document) {
-        return null;
-    }
 
     /**
      * Converts a provided TREC formatted list of documents
