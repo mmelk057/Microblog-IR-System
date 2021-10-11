@@ -127,7 +127,7 @@ public class MicroblogTokenizer {
             strippedTokens.add(strippedToken);
         }
 
-        return namedEntityRecognition(strippedTokens.toArray(new String[0]), 0.8);
+        return namedEntityRecognition(strippedTokens.toArray(new String[0]), 0.7);
     }
 
     /**
@@ -147,20 +147,29 @@ public class MicroblogTokenizer {
         for(TokenNameFinder nameFinder: nameFinders) {
             foundEntities.addAll(Arrays.stream(nameFinder.find(coalescedTokens)).collect(Collectors.toList()));
         }
-        // SORT the named entities by probabilities in DESCENDING ORDER
+        // SORT the named entities by their span length && probabilities
+        // Shorter the span, higher the priority (Assumption: rarely do large aggregation of words form a meaningful named entity)
+        // Larger the probability, higher the priority
         foundEntities.sort((e1,e2) -> {
-            if (e1.getProb() < e2.getProb()) {
-                return 1;
-            } else if (e1.getProb() == e2.getProb()) {
-                return 0;
+            int firstSpanLen = e1.getEnd() - e1.getStart();
+            int secondSpanLen = e2.getEnd() - e2.getStart();
+            if (firstSpanLen < secondSpanLen) {
+                return -1;
+            } else if (firstSpanLen == secondSpanLen) {
+                if (e1.getProb() < e2.getProb()) {
+                    return 1;
+                } else if (e1.getProb() == e2.getProb()) {
+                    return 0;
+                }
+                return -1;
             }
-            return -1;
+            return 1;
         });
 
         for (Span foundEntity: foundEntities) {
 
             if (foundEntity.getProb() < probabilityThreshold) {
-                break;
+                continue;
             }
 
             List<String> coalescedTokenComponents = new ArrayList<>();
