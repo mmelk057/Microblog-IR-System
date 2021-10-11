@@ -1,0 +1,23 @@
+
+[
+  {
+    "regex": "[pP]+[lL]+[zZ]+",
+    "replacement": "please"
+  },
+  {
+    "regex": "[lL]+[uU]+[vV]+",
+    "replacement": "love"
+  },
+  {
+    "regex": "[oO]+[mM]+[gG]+",
+    "replacement": "oh my god"
+  },
+  {
+    "regex": "[wW][yY][mM]",
+    "replacement": "what do you mean"
+  },
+  {
+    "regex": "em",
+    "replacement": "them"
+  }
+]

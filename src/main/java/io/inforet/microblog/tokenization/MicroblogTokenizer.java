@@ -1,5 +1,10 @@
-package io.inforet.microblog;
+package io.inforet.microblog.tokenization;
 
+import com.fasterxml.jackson.core.JsonParseException;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.JsonMappingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import io.inforet.microblog.entities.RegexReplacement;
 import opennlp.tools.namefind.NameFinderME;
 import opennlp.tools.namefind.TokenNameFinder;
 import opennlp.tools.namefind.TokenNameFinderModel;
@@ -25,6 +30,8 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 public class MicroblogTokenizer {
@@ -50,6 +57,8 @@ public class MicroblogTokenizer {
     private final TokenNameFinder personsNamedEntityFinder;
     private final TokenNameFinder orgNamedEntityFinder;
     private final TokenNameFinder locationNamedEntityFinder;
+
+    private static final String REGEX_TOKEN_REPLACEMENTS = "replacements.json";
 
     public MicroblogTokenizer() {
         this.principalTokenizer = buildTokenizer(TOKEN_MODEL_PATH);
@@ -125,9 +134,8 @@ public class MicroblogTokenizer {
             // PHASE 2 : CLEAN TOKENS
             // '#' prefix has a distinct meaning
             // '@' prefix has a distinct meaning
-            // '/' '\' prefix has a distinct meaning (relative URL)
-            String strippedToken = StringUtils.strip(rawTokens[i],"()$%!*^&-+=[]~`|:;\"'?<>{}.,");
-            strippedToken = StringUtils.stripEnd(strippedToken, "/\\#@");
+            String strippedToken = rawTokens[i].replaceAll("[^#@1-9a-zA-Z]+", StringUtils.EMPTY);
+            strippedToken = StringUtils.stripEnd(strippedToken, "#@");
             if (strippedToken.length() <= 1) {
                 continue;
             }
@@ -139,7 +147,9 @@ public class MicroblogTokenizer {
             strippedTokens.add(strippedToken);
         }
 
-        return namedEntityRecognition(strippedTokens.toArray(new String[0]), 0.7);
+        String[] finalTokensList = applyReplacements(strippedTokens.toArray(new String[0]));
+
+        return namedEntityRecognition(finalTokensList, 0.7, 5);
     }
 
     /**
@@ -149,9 +159,10 @@ public class MicroblogTokenizer {
      * Each recognition that meets or exceeds the boundary modifies the token context (coalescing of tokens)
      * @param tokens List of reference tokens to seek named entities from
      * @param probabilityThreshold 0 <= value <= 1
+     * @param entityLenThreshold Maximum named entity length
      * @return List of tokens
      */
-    private String[] namedEntityRecognition(String[] tokens, double probabilityThreshold) {
+    private String[] namedEntityRecognition(String[] tokens, double probabilityThreshold, int entityLenThreshold) {
         TokenNameFinder[] nameFinders = { personsNamedEntityFinder, locationNamedEntityFinder, orgNamedEntityFinder };
         String[] coalescedTokens = Arrays.stream(tokens).toArray(String[]::new);
 
@@ -180,7 +191,8 @@ public class MicroblogTokenizer {
 
         for (Span foundEntity: foundEntities) {
 
-            if (foundEntity.getProb() < probabilityThreshold) {
+            if (foundEntity.getProb() < probabilityThreshold ||
+                    (foundEntity.getEnd() - foundEntity.getStart()) > entityLenThreshold) {
                 continue;
             }
 
@@ -228,6 +240,44 @@ public class MicroblogTokenizer {
             }catch (URISyntaxException ex) {}
         }
         return categorizedComponents;
+    }
+
+    /**
+     * Executes a simple token replacement procedure against a set of tokens,
+     * to account for common abbreviations, short-hand notations, etc.
+     * This is not a replacement for spell correction, but rather a precursor.
+     * (i.e, "u" => "you", "plzz" => "please", "wym" => "what do you mean" )
+     * An alternative measure from normalizations using equivalence classes (less precision),
+     * but maintains a slight boost in recall.
+     * @param tokens List of tokens to process
+     * @return
+     */
+    private String[] applyReplacements(String[] tokens) {
+        URL url = Thread.currentThread().getContextClassLoader().getResource(REGEX_TOKEN_REPLACEMENTS);
+        if (url == null) {
+            return tokens;
+        }
+        try {
+            ObjectMapper mapper = new ObjectMapper();
+            List<RegexReplacement> regexReplacementList = mapper.readValue(url, new TypeReference<List<RegexReplacement>>() {});
+            for (int i = 0; i < tokens.length; i++) {
+                for(RegexReplacement regexReplacement: regexReplacementList) {
+                    Pattern pattern = Pattern.compile(regexReplacement.getRegex());
+                    Matcher matcher = pattern.matcher(tokens[i]);
+                    // IT MUST MATCH THE FULL TEXT CONTENT TO BE REPLACED.
+                    // MULTIPLE OCCURRENCES ARE NOT CONSIDERED...
+                    if (matcher.matches()) {
+                        tokens[i] = regexReplacement.getReplacement();
+                        break;
+                    }
+                }
+            }
+            return tokens;
+        } catch (JsonMappingException | JsonParseException ex) {
+            throw new IllegalArgumentException(String.format("Failed to parse the following URL: '%s'. Cause: '%s'", url.getPath(), ex.getCause().getMessage()));
+        } catch (IOException ex) {
+            throw new IllegalArgumentException(String.format("Failed to read the following URL: '%s'. Cause: '%s'", url.getPath(), ex.getCause().getMessage()));
+        }
     }
 
 }
