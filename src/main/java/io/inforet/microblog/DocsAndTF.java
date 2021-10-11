@@ -36,10 +36,7 @@ public class DocsAndTF{
         }
     }
 
-    /**
-     * Get the term frequency for a word in a particular document
-     * @param document
-     */
+    
 
     public Integer getTermFrequency(String document){
         return (docs.get(document));
