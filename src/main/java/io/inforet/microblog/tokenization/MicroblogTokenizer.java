@@ -149,7 +149,7 @@ public class MicroblogTokenizer {
 
         String[] finalTokensList = applyReplacements(strippedTokens.toArray(new String[0]));
 
-        return namedEntityRecognition(finalTokensList, 0.7, 5);
+        return namedEntityRecognition(finalTokensList, 0.7, 3);
     }
 
     /**
