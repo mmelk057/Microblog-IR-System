@@ -21,7 +21,7 @@ import java.util.function.Function;
 public class App {
 
     public static final String OUTPUT_FILE_ARG = "resultsDir";
-    public static final String resultsFileName = "Results.txt";
+    public static final String RESULTS_FILE_NAME = "Results.txt";
     public static final String TREC_DATASET = "trec-dataset.txt";
     public static final String TREC_QUERIES = "trec-queries.xml";
     public static final String STOP_WORDS = "stop-words.txt";
@@ -83,7 +83,7 @@ public class App {
             if (!directoryObj.exists() || !directoryObj.isDirectory()) {
                 throw new IllegalArgumentException(String.format("The following file cannot be located or isn't a directory: '%s'", decodedDirPath));
             }
-            String resultsFilePath = String.format("%s\\%s", decodedDirPath, resultsFileName);
+            String resultsFilePath = String.format("%s\\%s", decodedDirPath, RESULTS_FILE_NAME);
 
             try (BufferedWriter fileWriter = new BufferedWriter(new FileWriter(resultsFilePath))) {
                 for (Query query : parsedQueries) {
