@@ -1,5 +1,5 @@
 package io.inforet.microblog;
-import java.util.LinkedHashMap;
+import java.util.HashMap;
 
 
 public class InvertedIndex{
@@ -7,11 +7,11 @@ public class InvertedIndex{
     /**
      * The inverted index is a hashmap with the key being a word(string) and the value being of DocsAndTF type
      */
-    private LinkedHashMap<String,DocsAndTF> index;
+    private HashMap<String,DocsAndTF> index;
     private int totalNumberOfDocuments;
 
     public InvertedIndex(int totalNumberOfDocuments){
-        index = new LinkedHashMap<>();
+        index = new HashMap<>();
         this.totalNumberOfDocuments = totalNumberOfDocuments;
     }
 
@@ -28,7 +28,7 @@ public class InvertedIndex{
             DocsAndTF value = index.get(word);
             value.addDoc(document);
         }else{
-            LinkedHashMap<String, Integer> mp = new LinkedHashMap<>();
+            HashMap<String, Integer> mp = new HashMap<>();
             mp.put(document,1);
             index.put(word, new DocsAndTF(mp));    
         }

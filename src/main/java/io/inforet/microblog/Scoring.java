@@ -5,7 +5,7 @@ import org.apache.commons.lang3.tuple.Pair;
 import java.util.*;
 
 public class Scoring {
-    // Note the assignment instructions speak of a modified tf-idf weighting scheme for query terms: w_iq = (0.5 + 0.5 tf_iq)∙idf_i. Perhaps we can test this version later.
+    // Note the assignment instructions speak of a modified tf-idf weighting scheme for query terms: w_iq = (0.5 + 0.5 tf_iq)∙idf_i
     private static double weightQueryTerm(int totalNumberOfDocuments, int documentFrequency, int termFrequency) {
         double weightedTermFrequency = (0.5 + 0.5 * weightTermFrequency(termFrequency));
         double inverseDocumentFrequency = calculateInverseDocumentFrequency(totalNumberOfDocuments, documentFrequency);
@@ -76,9 +76,13 @@ public class Scoring {
 
                 if (oldCosineScore == null) {
                     cosineScores.put(docID, cosineScore);
-                    documentLengths.put(docID, documentLength);
                 } else {
                     cosineScores.put(docID, oldCosineScore + cosineScore);
+                }
+
+                if (oldDocumentLength == null) {
+                    documentLengths.put(docID, documentLength);
+                } else {
                     documentLengths.put(docID, oldDocumentLength + documentLength);
                 }
             }

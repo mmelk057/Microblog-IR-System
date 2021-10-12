@@ -47,15 +47,11 @@ public class App {
 
         for (InfoDocument document: parsedDocuments) {
             String[] tokens = tokenizer.tokenizeDocument(document.getDocument());
-            String[] id = tokenizer.tokenizeDocument(document.getID());
-            //get the document id
-            String idNumber = id[0];
             for(String word: tokens){
                 //Do not add stopwords to the inverted index
                 if(!stopWords.contains(word)){
-                    index.addToken(word,idNumber);
+                    index.addToken(word,document.getID());
                 }
-                
             }           
         }
 
@@ -68,8 +64,8 @@ public class App {
                     String docID = cosineScores.get(i).getLeft();
                     double cosineScore = cosineScores.get(i).getRight();
 
-                    System.out.printf("%s Q0 %s %d %.3f myRun%n", query.getID(), docID, i + 1, cosineScore);
-                    writer.write(String.format("%s Q0 %s %d %.3f myRun%n", query.getID(), docID, i + 1, cosineScore));
+                    System.out.printf("%s Q0 %s %d %.6f myRun%n", query.getID(), docID, i + 1, cosineScore);
+                    writer.write(String.format("%s Q0 %s %d %.6f myRun%n", query.getID(), docID, i + 1, cosineScore));
                 }
             }
         }
