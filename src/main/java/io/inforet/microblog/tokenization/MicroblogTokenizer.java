@@ -12,6 +12,7 @@ import opennlp.tools.tokenize.Tokenizer;
 import opennlp.tools.tokenize.TokenizerME;
 import opennlp.tools.tokenize.TokenizerModel;
 import opennlp.tools.util.Span;
+import org.apache.commons.lang3.ArrayUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.apache.commons.lang3.tuple.Pair;
@@ -28,8 +29,8 @@ import java.net.URLDecoder;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
-import java.util.Locale;
 import java.util.Objects;
+import java.util.regex.MatchResult;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -130,6 +131,7 @@ public class MicroblogTokenizer {
         }
 
         String[] rawTokens = principalTokenizer.tokenize(String.join(StringUtils.SPACE, nonURIComponents.toArray(new String[0])));
+
         for (int i = 0; i < rawTokens.length; i++) {
             // PHASE 2 : CLEAN TOKENS
             // '#' prefix has a distinct meaning
@@ -139,16 +141,17 @@ public class MicroblogTokenizer {
             if (strippedToken.length() <= 1) {
                 continue;
             }
-            // PHASE 3 : DEAL WITH CAPITALIZATION
-            if (StringUtils.isAllUpperCase(strippedToken)) {
-                strippedToken = strippedToken.toLowerCase(Locale.ROOT);
-            }
-
             strippedTokens.add(strippedToken);
         }
 
+        // PHASE 3 : Token expansion
+        applyInnerWordExpansion(strippedTokens);
+        applyHashtagExpansion(strippedTokens);
+
+        // PHASE 4 : Apply word replacements
         String[] finalTokensList = applyReplacements(strippedTokens.toArray(new String[0]));
 
+        // PHASE 5 : Named entity recognition
         return namedEntityRecognition(finalTokensList, 0.7, 3);
     }
 
@@ -239,6 +242,61 @@ public class MicroblogTokenizer {
             }catch (URISyntaxException ex) {}
         }
         return categorizedComponents;
+    }
+
+    /**
+     * Expand hashtag content into its own token, while preserving the full hashtag in the list of tokens
+     * @param tokens List of tokens
+     */
+    private void applyHashtagExpansion(List<String> tokens) {
+        String[] tmp = tokens.toArray(new String[0]);
+        for (String token : tmp) {
+            // REGEX isn't complete, but sufficient for most use cases
+            Pattern hashtagPattern = Pattern.compile("^[#]+[a-zA-Z0-9_]+");
+            Matcher matcher = hashtagPattern.matcher(token);
+            if (matcher.matches()) {
+                tokens.add(StringUtils.stripStart(token, "#"));
+            }
+        }
+    }
+
+    /**
+     * Some words may be compounded together without delineation (i.e, BBCNewsNetwork).
+     * Delineate compounded words into individual tokens (i.e, BBCNewsNetwork -> ['BBC', 'News', 'Network'])
+     * @param tokens List of tokens to parse
+     */
+    private void applyInnerWordExpansion(List<String> tokens) {
+        String[] tmp = tokens.toArray(new String[0]);
+        for (String token : tmp) {
+            Character[] tokenCharacters = ArrayUtils.toObject(token.toCharArray());
+            Pattern innerWordDelimiter = Pattern.compile("[A-Z]{1}[a-z]+");
+            Matcher matcher = innerWordDelimiter.matcher(token);
+            // We don't care about full matches - we care about multiple occurrence matches within a string
+            MatchResult[] matchResults = matcher.results().toArray(MatchResult[]::new);
+            if ( matchResults.length > 1 ||
+                    ( matchResults.length == 1 && ( matchResults[0].end() - matchResults[0].start() ) < token.length() ) ) {
+                for (MatchResult matchResult : matchResults) {
+                    tokens.add(token.substring(matchResult.start(), matchResult.end()));
+                    for (int i = matchResult.start(); i < matchResult.end(); i++) {
+                        tokenCharacters[i] = null;
+                    }
+                }
+
+                StringBuilder builder = new StringBuilder();
+                for (int i = 0; i < tokenCharacters.length; i++) {
+                    Character remainingChar = tokenCharacters[i];
+                    if (remainingChar != null) {
+                        builder.append(remainingChar);
+                    }
+                    if (remainingChar == null || i == (tokenCharacters.length - 1)) {
+                        if (builder.length() > 1) {
+                            tokens.add(builder.toString());
+                        }
+                        builder.setLength(0);
+                    }
+                }
+            }
+        }
     }
 
     /**
