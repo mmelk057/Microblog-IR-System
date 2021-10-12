@@ -63,15 +63,13 @@ public class App {
             for (Query query : parsedQueries) {
                 String[] tokens = tokenizer.tokenizeDocument(query.getQuery());
                 List<Pair<String, Double>> cosineScores = Scoring.cosineScore(index, tokens);
-                query.print();
 
-                System.out.printf("Cosine scores size: %d%n", cosineScores.size());
                 for (int i = 0; i < cosineScores.size(); i++) {
                     String docID = cosineScores.get(i).getLeft();
                     double cosineScore = cosineScores.get(i).getRight();
 
                     System.out.printf("%s Q0 %s %d %.3f myRun%n", query.getID(), docID, i + 1, cosineScore);
-                    //writer.write(String.format("%s Q0 %s %d %.3f myRun%n", query.getID(), docID, i + 1, cosineScore));
+                    writer.write(String.format("%s Q0 %s %d %.3f myRun%n", query.getID(), docID, i + 1, cosineScore));
                 }
             }
         }
