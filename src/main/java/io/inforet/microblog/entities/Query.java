@@ -21,4 +21,8 @@ public class Query {
     public String getQuery() {
         return Query;
     }
+
+    public void print() {
+        System.out.printf("%s: %s%n", ID, Query);
+    }
 }

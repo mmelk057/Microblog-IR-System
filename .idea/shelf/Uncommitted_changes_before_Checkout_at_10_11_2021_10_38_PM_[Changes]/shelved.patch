@@ -1,0 +1,42 @@
+Index: src/main/java/io/inforet/microblog/App.java
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.BaseRevisionTextPatchEP
+<+>package io.inforet.microblog;\r\n\r\nimport io.inforet.microblog.entities.InfoDocument;\r\nimport io.inforet.microblog.entities.Query;\r\n\r\nimport java.net.URL;\r\nimport java.util.Collection;\r\nimport java.util.LinkedList;\r\nimport java.util.List;\r\nimport java.util.Set;\r\nimport java.util.function.Function;\r\n\r\npublic class App {\r\n\r\n    public static final String TREC_DATASET = \"trec-dataset.txt\";\r\n    public static final String TREC_QUERIES = \"trec-queries.xml\";\r\n    public static final String STOP_WORDS = \"stop-words.txt\";\r\n\r\n    /**\r\n     * Parses a generic list of entries from a given fileName\r\n     * @param fileName Relative path\r\n     * @param fileCallback Callback to invoke, providing the fileName, with the expectation of a generic list of entries\r\n     * @param <T> Entry type\r\n     * @return Generic list of entries\r\n     */\r\n    public static <T> Collection<T> loadFileEntries(String fileName, Function<String, Collection<T>> fileCallback) {\r\n        URL datasetURL = Thread.currentThread().getContextClassLoader().getResource(fileName);\r\n        Collection<T> parsedDocuments = null;\r\n        if (datasetURL != null) {\r\n            parsedDocuments = fileCallback.apply(datasetURL.getPath());\r\n        }\r\n        return parsedDocuments != null ? parsedDocuments : new LinkedList<>();\r\n    }\r\n\r\n\r\n    public static void main(String[] args) {\r\n        List<InfoDocument> parsedDocuments = (List<InfoDocument>) loadFileEntries(TREC_DATASET, TRECTools::parseCollection);\r\n        List<Query> parsedQueries = (List<Query>) loadFileEntries(TREC_QUERIES, TRECTools::parseQueries);\r\n        Set<String> stopWords = (Set<String>) loadFileEntries(STOP_WORDS, TRECTools::parseStopWords);\r\n        MicroblogTokenizer tokenizer = new MicroblogTokenizer();\r\n        for (InfoDocument document: parsedDocuments) {\r\n            String[] tokens = tokenizer.tokenizeDocument(document.getDocument());\r\n            /**\r\n             * TODO: Build Inverted Index Structure\r\n             */\r\n        }\r\n    }\r\n}\r\n
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/src/main/java/io/inforet/microblog/App.java b/src/main/java/io/inforet/microblog/App.java
+--- a/src/main/java/io/inforet/microblog/App.java	
++++ b/src/main/java/io/inforet/microblog/App.java	
+@@ -2,7 +2,10 @@
+ 
+ import io.inforet.microblog.entities.InfoDocument;
+ import io.inforet.microblog.entities.Query;
++import io.inforet.microblog.tokenization.MicroblogTokenizer;
+ 
++import java.io.BufferedWriter;
++import java.io.FileWriter;
+ import java.net.URL;
+ import java.util.Collection;
+ import java.util.LinkedList;
+@@ -38,11 +41,14 @@
+         List<Query> parsedQueries = (List<Query>) loadFileEntries(TREC_QUERIES, TRECTools::parseQueries);
+         Set<String> stopWords = (Set<String>) loadFileEntries(STOP_WORDS, TRECTools::parseStopWords);
+         MicroblogTokenizer tokenizer = new MicroblogTokenizer();
+-        for (InfoDocument document: parsedDocuments) {
+-            String[] tokens = tokenizer.tokenizeDocument(document.getDocument());
+-            /**
+-             * TODO: Build Inverted Index Structure
+-             */
+-        }
++        try (BufferedWriter writer = new BufferedWriter(new FileWriter("C:\\Users\\rholt\\Desktop\\tokens.txt"))) {
++            for (InfoDocument document : parsedDocuments) {
++                String[] tokens = tokenizer.tokenizeDocument(document.getDocument());
++                writer.write(String.format("%s%n", String.join(" || ", tokens)));
++                /**
++                 * TODO: Build Inverted Index Structure
++                 */
++            }
++        } catch (Exception ex) {}
+     }
+ }
