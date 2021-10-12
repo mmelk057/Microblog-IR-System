@@ -179,12 +179,11 @@ public class MicroblogTokenizer {
             if (firstSpanLen < secondSpanLen) {
                 return -1;
             } else if (firstSpanLen == secondSpanLen) {
-                if (e1.getProb() < e2.getProb()) {
-                    return 1;
+                if (e1.getProb() > e2.getProb()) {
+                    return -1;
                 } else if (e1.getProb() == e2.getProb()) {
                     return 0;
                 }
-                return -1;
             }
             return 1;
         });

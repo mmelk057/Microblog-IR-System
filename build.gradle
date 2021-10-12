@@ -37,3 +37,9 @@ application {
     // Define the main class for the application.
     mainClassName = javaMainClass
 }
+
+run {
+    if (project.hasProperty('jvmArgs')) {
+        jvmArgs = (project.jvmArgs.split("\\s+") as List)
+    }
+}
