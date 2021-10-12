@@ -2,7 +2,6 @@ package io.inforet.microblog;
 
 import io.inforet.microblog.entities.InfoDocument;
 import io.inforet.microblog.entities.Query;
-import io.inforet.microblog.entities.RankedDocument;
 import io.inforet.microblog.tokenization.MicroblogTokenizer;
 
 import java.net.URL;
@@ -61,21 +60,7 @@ public class App {
         List<Query> parsedQueries = (List<Query>) loadFileEntries(TREC_QUERIES, TRECTools::parseQueries);
         Set<String> stopWords = (Set<String>) loadFileEntries(STOP_WORDS, TRECTools::parseStopWords);
         MicroblogTokenizer tokenizer = new MicroblogTokenizer();
-        for (InfoDocument document: parsedDocuments) {
-            String[] tokens = tokenizer.tokenizeDocument(document.getDocument());
-            /**
-             * TODO: Build Inverted Index Structure
-             */
-        }
 
-        // (4) Generate TREC results file
-        // TEST DATA (TEMP)------------------------------
-        List<RankedDocument> rankedDocuments = new ArrayList<>();
-        rankedDocuments.add(new RankedDocument(new Query("MB001", "EXAMPLE"), new InfoDocument("1234", "SOME CONTENT"), 0.3421));
-        rankedDocuments.add(new RankedDocument(new Query("MB020", "EXAMPLE"), new InfoDocument("28932", "SOME CONTENT"), 0.9721));
-        rankedDocuments.add(new RankedDocument(new Query("MB001", "EXAMPLE"), new InfoDocument("4567", "SOME CONTENT"), 0.387));
-        rankedDocuments.add(new RankedDocument(new Query("MB020", "EXAMPLE"), new InfoDocument("29382", "SOME CONTENT"), 0.9213));
-        //-----------------------------------------------
-        TRECTools.generateResultsFile(outputPath, rankedDocuments);
+
     }
 }

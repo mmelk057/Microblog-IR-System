@@ -2,7 +2,6 @@ package io.inforet.microblog;
 
 import io.inforet.microblog.entities.InfoDocument;
 import io.inforet.microblog.entities.Query;
-import io.inforet.microblog.entities.RankedDocument;
 import org.apache.commons.lang3.StringUtils;
 import org.w3c.dom.Document;
 import org.w3c.dom.Node;
@@ -155,70 +154,5 @@ public class TRECTools {
             throw new IllegalArgumentException(String.format("Failed to decode the following file path: '%s'", filePath));
         }
         return stopWords;
-    }
-
-
-    /**
-     * Generates a TREC results file derived from a list of ranked documents against a set of
-     * executed queries
-     * @param dirPath Directory to generate results file in..
-     * @param rankedDocuments List of ranked documents
-     */
-    public static void generateResultsFile(String dirPath, List<RankedDocument> rankedDocuments) {
-        final String resultsFileName = "Results.txt";
-        try {
-            String decodedDirPath = URLDecoder.decode(dirPath, "UTF-8");
-            File directoryObj = new File(dirPath);
-            if (!directoryObj.exists() || !directoryObj.isDirectory()) {
-                throw new IllegalArgumentException(String.format("The following file cannot be located or isn't a directory: '%s'", decodedDirPath));
-            }
-            String resultsFilePath = String.format("%s\\%s", decodedDirPath, resultsFileName);
-            try (BufferedWriter fileWriter = new BufferedWriter(new FileWriter(resultsFilePath))) {
-
-                // ORDER DOCUMENTS BY TWO VECTORS:
-                // DOC_ID && COSINE SCORE!
-                rankedDocuments.sort((doc1, doc2) -> {
-                    int queryIDComp = doc1.getQuery().getID().compareTo(doc2.getQuery().getID());
-                    if (queryIDComp < 0) {
-                        return -1;
-                    } else if (queryIDComp == 0) {
-                        if (doc1.getCosineScore() > doc2.getCosineScore()) {
-                            return -1;
-                        } else if (doc1.getCosineScore() == doc2.getCosineScore()) {
-                            return 0;
-                        }
-                    }
-                    return 1;
-                });
-
-                // Every run needs a unique identifier!
-                String currentRunUUID = UUID.randomUUID().toString();
-                String currentQueryID = rankedDocuments.get(0).getQuery().getID();
-                int rankingCount = 0;
-                for (int i = 0; i < rankedDocuments.size(); i++) {
-                    RankedDocument currentDoc = rankedDocuments.get(i);
-                    String latestQueryID = currentDoc.getQuery().getID();
-                    if (!currentQueryID.equals(latestQueryID)) {
-                        currentQueryID = latestQueryID;
-                        rankingCount = 0;
-                    }
-                    rankingCount++;
-                    // TREC format
-                    // {QUERY_ID} Q0 {DOC_ID} {RANK} {COSINE_SCORE} {RUN_UUID}
-                    // NOTE: the cosine score is up to 3 decimal points
-                    // ASSUMPTION: space-delimited entries...
-                    fileWriter.write(String.format("%s Q0 %s %d %,.3f %s%n",
-                                                    latestQueryID,
-                                                    currentDoc.getDocument().getID(),
-                                                    rankingCount,
-                                                    currentDoc.getCosineScore(),
-                                                    currentRunUUID));
-                }
-            } catch (IOException ex) {
-                throw new IllegalArgumentException(String.format("Failed to write to the following results file path: '%s'. Cause: '%s'", resultsFilePath, ex.getCause().getMessage()));
-            }
-        } catch (UnsupportedEncodingException ex) {
-            throw new IllegalArgumentException(String.format("Failed to decode the following file path: '%s'. Cause: '%s'", dirPath, ex.getCause().getMessage()));
-        }
     }
 }
