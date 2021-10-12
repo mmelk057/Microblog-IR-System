@@ -1,5 +1,5 @@
 package io.inforet.microblog;
-import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.Set;
@@ -11,11 +11,11 @@ public class DocsAndTF{
      * docFrequency is the the number of document IDs present in the hashmap
      */
 
-    private HashMap<String, Integer> docs;
+    private LinkedHashMap<String, Integer> docs;
     private Integer docFrequency;
 
 
-    public DocsAndTF(HashMap<String, Integer> docs){
+    public DocsAndTF(LinkedHashMap<String, Integer> docs){
         this.docs = docs;
         docFrequency = 1;
     }
@@ -46,7 +46,7 @@ public class DocsAndTF{
         return docFrequency;
     }
 
-    public HashMap<String,Integer> getDocuments(){
+    public LinkedHashMap<String,Integer> getDocuments(){
         return docs;
     }
 

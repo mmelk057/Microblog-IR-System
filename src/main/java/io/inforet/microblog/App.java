@@ -2,7 +2,11 @@ package io.inforet.microblog;
 
 import io.inforet.microblog.entities.InfoDocument;
 import io.inforet.microblog.entities.Query;
+import io.inforet.microblog.tokenization.MicroblogTokenizer;
+import org.apache.commons.lang3.tuple.Pair;
 
+import java.io.BufferedWriter;
+import java.io.FileWriter;
 import java.net.URL;
 import java.util.Collection;
 import java.util.LinkedList;
@@ -38,8 +42,8 @@ public class App {
         List<Query> parsedQueries = (List<Query>) loadFileEntries(TREC_QUERIES, TRECTools::parseQueries);
         Set<String> stopWords = (Set<String>) loadFileEntries(STOP_WORDS, TRECTools::parseStopWords);
         MicroblogTokenizer tokenizer = new MicroblogTokenizer();
-        InvertedIndex index = new InvertedIndex();
-
+        int totalNumberOfDocuments = parsedDocuments.size();
+        InvertedIndex index = new InvertedIndex(totalNumberOfDocuments);
 
         for (InfoDocument document: parsedDocuments) {
             String[] tokens = tokenizer.tokenizeDocument(document.getDocument());
@@ -53,7 +57,25 @@ public class App {
                 }
                 
             }           
-        }       
+        }
+
+        try (BufferedWriter writer = new BufferedWriter(new FileWriter("Results.txt"))) {
+            for (Query query : parsedQueries) {
+                String[] tokens = tokenizer.tokenizeDocument(query.getQuery());
+                List<Pair<String, Double>> cosineScores = Scoring.cosineScore(index, tokens);
+                query.print();
+
+                System.out.printf("Cosine scores size: %d%n", cosineScores.size());
+                for (int i = 0; i < cosineScores.size(); i++) {
+                    String docID = cosineScores.get(i).getLeft();
+                    double cosineScore = cosineScores.get(i).getRight();
+
+                    System.out.printf("%s Q0 %s %d %.3f myRun%n", query.getID(), docID, i + 1, cosineScore);
+                    //writer.write(String.format("%s Q0 %s %d %.3f myRun%n", query.getID(), docID, i + 1, cosineScore));
+                }
+            }
+        }
+        catch (Exception ex) {System.out.println(ex.getMessage());}
     }
     
 }

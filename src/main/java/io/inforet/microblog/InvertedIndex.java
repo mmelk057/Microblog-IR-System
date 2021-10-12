@@ -1,5 +1,5 @@
 package io.inforet.microblog;
-import java.util.HashMap;
+import java.util.LinkedHashMap;
 
 
 public class InvertedIndex{
@@ -7,10 +7,12 @@ public class InvertedIndex{
     /**
      * The inverted index is a hashmap with the key being a word(string) and the value being of DocsAndTF type
      */
-    private HashMap<String,DocsAndTF> index;
+    private LinkedHashMap<String,DocsAndTF> index;
+    private int totalNumberOfDocuments;
 
-    public InvertedIndex(){
-        index = new HashMap<String, DocsAndTF>();
+    public InvertedIndex(int totalNumberOfDocuments){
+        index = new LinkedHashMap<>();
+        this.totalNumberOfDocuments = totalNumberOfDocuments;
     }
 
     /**
@@ -26,7 +28,7 @@ public class InvertedIndex{
             DocsAndTF value = index.get(word);
             value.addDoc(document);
         }else{
-            HashMap<String, Integer> mp = new HashMap<String, Integer>();
+            LinkedHashMap<String, Integer> mp = new LinkedHashMap<>();
             mp.put(document,1);
             index.put(word, new DocsAndTF(mp));    
         }
@@ -65,7 +67,7 @@ public class InvertedIndex{
      * Prints the hashmap associated with a word
      * Prints all the documents where the word appears with the corresponding term frequency
      */
-    public void getDocumentList(String word){
+    public void printDocumentList(String word){
         if(index.containsKey(word)){
             DocsAndTF value = index.get(word);
             value.printDocumentsAndTF();        
@@ -73,7 +75,12 @@ public class InvertedIndex{
             System.out.println("No such word in index");
         }
     }
-    
 
-    
+    public DocsAndTF getDocumentList(String word) {
+        return index.get(word);
+    }
+
+    public int getTotalNumberOfDocuments() {
+        return totalNumberOfDocuments;
+    }
 }
