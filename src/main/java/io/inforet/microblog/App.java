@@ -64,7 +64,7 @@ public class App {
         Set<String> stopWords = (Set<String>) loadFileEntries(STOP_WORDS, TRECTools::parseStopWords);
         MicroblogTokenizer tokenizer = new MicroblogTokenizer();
 
-        InvertedIndex index = new InvertedIndex(parsedDocuments.size(), stopWords);
+        InvertedIndex index = new InvertedIndex(parsedDocuments.size());
 
         /// (3) Build Inverted Index
         for (InfoDocument document : parsedDocuments) {
@@ -74,7 +74,10 @@ public class App {
             }
         }
 
-        // (4)  Generate a TREC results file derived from a list of documents scored against a set of executed queries
+        // (4) Filter stop words
+        index.filterStopWords(stopWords);
+
+        // (5) Generate a TREC results file derived from a list of documents scored against a set of executed queries
         try {
             String decodedDirPath = URLDecoder.decode(outputPath, "UTF-8");
             File directoryObj = new File(outputPath);

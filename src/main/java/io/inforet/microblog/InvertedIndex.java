@@ -1,5 +1,11 @@
 package io.inforet.microblog;
+import org.apache.commons.lang3.StringUtils;
+
+import java.util.Collection;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
@@ -19,13 +25,38 @@ public class InvertedIndex{
      *
      */
     private Map<String, Map<String, Integer>> index;
-    private final Set<String> stopWords;
     private final int totalNumberOfDocuments;
 
-    public InvertedIndex(int totalNumberOfDocuments, Set<String> stopWords){
+    public InvertedIndex(int totalNumberOfDocuments){
         index = new HashMap<>();
-        this.stopWords = stopWords;
         this.totalNumberOfDocuments = totalNumberOfDocuments;
+    }
+
+    /**
+     * Linguistically morph a term into various forms & permutations
+     * @param term Term to pre-process
+     * @return A list of term variations
+     */
+    private Collection<String> normalize(String term) {
+        Set<String> variations = new LinkedHashSet<>();
+        // TODO: ADD MORE VARIATIONS
+        variations.add(term);
+        variations.add(StringUtils.capitalize(term.toLowerCase(Locale.ROOT)));
+        variations.add(term.toLowerCase(Locale.ROOT));
+        variations.add(term.toUpperCase(Locale.ROOT));
+        return variations;
+    }
+
+    /**
+     * Filters an existing index by a collection of stop words
+     * @param stopWords List of stop words
+     */
+    public void filterStopWords(Collection<String> stopWords) {
+        for (String stopWord: stopWords) {
+            for (String stopWordVariation : normalize(stopWord)) {
+                index.remove(stopWordVariation);
+            }
+        }
     }
 
     /**
@@ -62,7 +93,7 @@ public class InvertedIndex{
      */
     public int getTermFrequency(String term, String docID) {
         if (index.containsKey(term)) {
-            return index.get(term).get(docID);
+            return getDocumentList(term).get(docID);
         }
         return 0;
     }
@@ -73,20 +104,34 @@ public class InvertedIndex{
      * @return The document frequency of a term
      */
     public int getDocumentFrequency(String term) {
-        if (index.containsKey(term)) {
-            // SIZE OF THE TERM'S DOC LIST
-            return index.get(term).size();
-        }
-        return 0;
+        return getDocumentList(term).size();
     }
 
     /**
-     * Get the document list for a given term
+     * Get the document list for a given term AND all its variations
      * @param term Term to fetch document list for
      * @return Mapping of documents to their associated term frequencies
      */
     public Map<String, Integer> getDocumentList(String term) {
-        return index.get(term);
+        Map<String, Integer> aggregatedDocumentsList = new LinkedHashMap<>();
+        for(String termVariation : normalize(term)) {
+            if (index.containsKey(termVariation)) {
+                Map<String, Integer> currentTermDocList = index.get(termVariation);
+                for (Map.Entry<String, Integer> termDocument : currentTermDocList.entrySet()) {
+                    if (!aggregatedDocumentsList.containsKey(termDocument.getKey())) {
+                        aggregatedDocumentsList.put(termDocument.getKey(), termDocument.getValue());
+                    } else {
+                        Integer oldDocumentFreq = aggregatedDocumentsList.get(termDocument.getKey());
+                        // Basically, all terms variations are ASSUMED to be umbrellaed under a single term.
+                        // (i.e., 'Stop' vs 'stop' are the same term...)
+                        // If a document exists under another variation with a given document frequency,
+                        // simply this variation's document frequency to it.
+                        aggregatedDocumentsList.replace(termDocument.getKey(), oldDocumentFreq + termDocument.getValue());
+                    }
+                }
+            }
+        }
+        return aggregatedDocumentsList;
     }
 
     public int getTotalNumberOfDocuments() {
