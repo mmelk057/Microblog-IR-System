@@ -1,83 +1,92 @@
 package io.inforet.microblog;
 import java.util.HashMap;
+import java.util.Map;
+import java.util.Set;
 
 
 public class InvertedIndex{
 
     /**
-     * The inverted index is a hashmap with the key being a word(string) and the value being of DocsAndTF type
+     * Mapping of terms to a mapping of document IDs to their corresponding term frequency of the
+     * term in which they are mapped by.
+     * { TERM_1 => { DOC_1 => TF, DOC_2 => TD, ...  }, ... }
+     *
+     * i.e.,
+     * DOC_1: I went to the beach today to get some sun at the beach
+     * DOC_2: The beach is very fun. I love going to the beach when the beach is warm
+     * { "beach" => { DOC_1 => 2, DOC_2 => 3 } }
+     *
+     *
      */
-    private HashMap<String,DocsAndTF> index;
-    private int totalNumberOfDocuments;
+    private Map<String, Map<String, Integer>> index;
+    private final Set<String> stopWords;
+    private final int totalNumberOfDocuments;
 
-    public InvertedIndex(int totalNumberOfDocuments){
+    public InvertedIndex(int totalNumberOfDocuments, Set<String> stopWords){
         index = new HashMap<>();
+        this.stopWords = stopWords;
         this.totalNumberOfDocuments = totalNumberOfDocuments;
     }
 
     /**
-     * Add a new token(word) in the index 
-     * It Checks if the token is already in the index
-     * If yes, it will add the document id to the hashmap or it will increase the term frequency of that document 
-     * If no, it will add the word to the index
-     * @param word The word to be added to the index
-     * @param document The document ID 
+     * Add a new term in the index
+     * Checks if the term exists in the index
+     * If YES, increase the term frequency of that document
+     * If NO, it will add the word to the index
+     * @param term The term to be added to the index
+     * @param docID The document ID
      */
-    public void addToken (String word, String document){
-        if (index.containsKey(word)){
-            DocsAndTF value = index.get(word);
-            value.addDoc(document);
-        }else{
-            HashMap<String, Integer> mp = new HashMap<>();
-            mp.put(document,1);
-            index.put(word, new DocsAndTF(mp));    
+    public void addTerm (String term, String docID){
+        // CASE: TERM DOESN'T EXIST -> create a new document list for the term with a single entry: the provided docID
+        if (!index.containsKey(term)) {
+            Map<String, Integer> docList = new HashMap<>();
+            docList.put(docID, 1);
+            index.put(term, docList);
+        }
+        // CASE: TERM EXISTS, BUT DOCUMENT DOES NOT (UNDER THE TERM..). ADD AN ENTRY WITHIN THE DOCUMENT LIST!
+        else if (!index.get(term).containsKey(docID)) {
+            index.get(term).put(docID, 1);
+        }
+        // CASE: TERM EXISTS, DOCUMENT EXISTS. INCREMENT TERM FREQUENCY!
+        else {
+            Integer oldVal = index.get(term).get(docID);
+            index.get(term).replace(docID, oldVal + 1);
         }
     }
 
     /**
-     * Get the term frequency of a particular word in a particular document
-     * @param word The word in the index
-     * @param document The documentID
-     * @return the term frequency
+     * Get the term frequency of a document
+     * @param term Term in the index
+     * @param docID The document ID
+     * @return Term frequency of the specified document
      */
-    public Integer getTermFrequency(String word, String document){
-        if(index.containsKey(word)){
-            DocsAndTF value = index.get(word);
-            return value.getTermFrequency(document);
-        }else{
-            return 0;
+    public int getTermFrequency(String term, String docID) {
+        if (index.containsKey(term)) {
+            return index.get(term).get(docID);
         }
+        return 0;
     }
 
     /**
-     * Get the document frequency of a word in the index
-     * @param word The word in the index
-     * @return The document frequency of a word
+     * Get the document frequency of a term in the index
+     * @param term Term in the index
+     * @return The document frequency of a term
      */
-    public Integer getDocumentFrequency(String word){
-        if(index.containsKey(word)){
-            DocsAndTF value = index.get(word);
-            return value.getDocumentFrequency();
-        }else{
-            return 0;
+    public int getDocumentFrequency(String term) {
+        if (index.containsKey(term)) {
+            // SIZE OF THE TERM'S DOC LIST
+            return index.get(term).size();
         }
+        return 0;
     }
 
     /**
-     * Prints the hashmap associated with a word
-     * Prints all the documents where the word appears with the corresponding term frequency
+     * Get the document list for a given term
+     * @param term Term to fetch document list for
+     * @return Mapping of documents to their associated term frequencies
      */
-    public void printDocumentList(String word){
-        if(index.containsKey(word)){
-            DocsAndTF value = index.get(word);
-            value.printDocumentsAndTF();        
-        }else{
-            System.out.println("No such word in index");
-        }
-    }
-
-    public DocsAndTF getDocumentList(String word) {
-        return index.get(word);
+    public Map<String, Integer> getDocumentList(String term) {
+        return index.get(term);
     }
 
     public int getTotalNumberOfDocuments() {

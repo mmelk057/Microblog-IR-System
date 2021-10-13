@@ -5,17 +5,16 @@ import org.apache.commons.lang3.tuple.Pair;
 import java.util.*;
 
 public class Scoring {
+
     // Note the assignment instructions speak of a modified tf-idf weighting scheme for query terms: w_iq = (0.5 + 0.5 tf_iq)∙idf_i
     private static double weightQueryTerm(int totalNumberOfDocuments, int documentFrequency, int termFrequency) {
         double weightedTermFrequency = (0.5 + 0.5 * weightTermFrequency(termFrequency));
         double inverseDocumentFrequency = calculateInverseDocumentFrequency(totalNumberOfDocuments, documentFrequency);
-        double weight = weightedTermFrequency * inverseDocumentFrequency;
-        return weight;
+        return weightedTermFrequency * inverseDocumentFrequency;
     }
 
     private static double weightDocumentTerm(int termFrequency) {
-        double weightedTermFrequency = weightTermFrequency(termFrequency);
-        return weightedTermFrequency;
+        return weightTermFrequency(termFrequency);
     }
 
     private static double weightTermFrequency(double termFrequency) {
@@ -28,9 +27,15 @@ public class Scoring {
         return termFrequencyWeight;
     }
 
+    /**
+     * Calculates the IDF (inverse document frequency),
+     * a measurement that bias' towards unique terms
+     * @param totalNumberOfDocuments total # of documents available
+     * @param documentFrequency # of documents where a particular term is found
+     * @return IDF measure
+     */
     private static double calculateInverseDocumentFrequency(double totalNumberOfDocuments, int documentFrequency) {
-        double inverseDocumentFrequency = Math.log10(totalNumberOfDocuments / documentFrequency);
-        return inverseDocumentFrequency;
+        return Math.log10(totalNumberOfDocuments / documentFrequency);
     }
 
     public static List<Pair<String, Double>> cosineScore(InvertedIndex invertedIndex, String[] queryTerms) {
@@ -60,10 +65,10 @@ public class Scoring {
                 documentLengths.put(queryKey, oldQuerySum + querySum);
             }
 
-            DocsAndTF documentList = invertedIndex.getDocumentList(queryTerm);
+            Map<String, Integer> documentList = invertedIndex.getDocumentList(queryTerm);
             if (documentList == null) continue; // do not process terms that do not exist in the inverted index
 
-            for (Map.Entry<String, Integer> entry : documentList.getDocuments().entrySet()) {
+            for (Map.Entry<String, Integer> entry : documentList.entrySet()) {
                 String docID = entry.getKey();
 
                 double weightedDocumentTerm = weightDocumentTerm(entry.getValue());
@@ -91,10 +96,10 @@ public class Scoring {
         // normalize weights, then calculate cosine similarity score
         for (int i = 0; i < queryTermsLength; i++) {
             String queryTerm = queryTerms[i];
-            DocsAndTF documentList = invertedIndex.getDocumentList(queryTerm);
+            Map<String, Integer> documentList = invertedIndex.getDocumentList(queryTerm);
             if (documentList == null) continue; // do not process terms that do not exist in the inverted index
 
-            for (Map.Entry<String, Integer> entry : documentList.getDocuments().entrySet()) {
+            for (Map.Entry<String, Integer> entry : documentList.entrySet()) {
                 String docID = entry.getKey();
                 double documentLength = documentLengths.get(docID);
                 double queryLength = documentLengths.get(queryKey);
@@ -115,16 +120,13 @@ public class Scoring {
         }
 
         // sort the cosine scores by descending value
-        cosineScoresList.sort(new Comparator<Pair<String, Double>>() {
-            @Override
-            public int compare(Pair<String, Double> o1, Pair<String, Double> o2) {
-                if (o1.getRight() > o2.getRight()) {
-                    return -1;
-                } else if (o1.getRight().equals(o2.getRight())) {
-                    return 0;
-                } else {
-                    return 1;
-                }
+        cosineScoresList.sort((o1, o2) -> {
+            if (o1.getRight() > o2.getRight()) {
+                return -1;
+            } else if (o1.getRight().equals(o2.getRight())) {
+                return 0;
+            } else {
+                return 1;
             }
         });
 
