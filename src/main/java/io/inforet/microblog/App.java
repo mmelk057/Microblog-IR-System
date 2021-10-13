@@ -89,8 +89,11 @@ public class App {
         // (4) Filter stop words
         index.filterStopWords(stopWords);
 
-        // (5) Sort parsed queries by id
+        // (5) Sort parsed queries by id and then reformat the id
         parsedQueries.sort(ALPHABETICAL_ORDER);
+        for (int i = 0; i < parsedQueries.size(); i++) {
+            parsedQueries.get(i).setID(String.valueOf(i + 1));      // reformat the query id to match the formatting in the evaluation file
+        }
 
         // (6) Generate a TREC results file derived from a list of documents scored against a set of executed queries
         try {
@@ -114,7 +117,11 @@ public class App {
                         String docID = cosineScores.get(i).getLeft();
                         double cosineScore = cosineScores.get(i).getRight();
 
-                        fileWriter.write(String.format("%s Q0 %s %d %,.6f myRun%n", query.getID(), docID, i + 1, cosineScore));
+                        fileWriter.write(String.format("%s Q0 %s %d %.6f myRun\n",
+                                query.getID(),
+                                docID,
+                                i + 1,
+                                cosineScore));
                     }
                 }
             } catch (IOException ex) {

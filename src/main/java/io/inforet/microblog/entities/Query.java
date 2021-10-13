@@ -25,4 +25,8 @@ public class Query {
     public void print() {
         System.out.printf("%s: %s%n", ID, Query);
     }
+
+    public void setID(String ID) {
+        this.ID = ID;
+    }
 }
