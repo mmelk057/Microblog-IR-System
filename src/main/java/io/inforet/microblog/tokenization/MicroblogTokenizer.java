@@ -33,8 +33,12 @@ import java.net.URL;
 import java.net.URLDecoder;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Objects;
+import java.util.Set;
 import java.util.function.Function;
 import java.util.regex.MatchResult;
 import java.util.regex.Matcher;
@@ -140,6 +144,20 @@ public class MicroblogTokenizer {
         }
     }
 
+    /**
+     * Returns a list of tokens from the provided query content
+     * @param query Represented as a document-unit (i.e., sentence, paragraph, chapter, etc.)
+     * @return List of query tokens
+     */
+    public String[] tokenizeQuery(String query) {
+        String[] sanitizedTokens = tokenizeDocument(query);
+        // APPLY QUERY EXPANSION!
+        List<String> expandedQuery = new ArrayList<>();
+        for(String sanitizedToken : sanitizedTokens) {
+            expandedQuery.addAll(normalize(sanitizedToken));
+        }
+        return expandedQuery.toArray(new String[0]);
+    }
 
     /**
      * Returns a list of tokens from the provided document content
@@ -368,6 +386,35 @@ public class MicroblogTokenizer {
         } catch (IOException ex) {
             throw new IllegalArgumentException(String.format("Failed to read the following URL: '%s'. Cause: '%s'", url.getPath(), ex.getCause().getMessage()));
         }
+    }
+
+    /**
+     * Linguistically morph a term into various forms & permutations
+     * @param term Term to pre-process
+     * @return A list of term variations
+     */
+    public Collection<String> normalize(String term) {
+        Set<String> variations = new LinkedHashSet<>();
+        // Original...
+        Set<String> rootTerms = Arrays.stream(term.split(StringUtils.SPACE)).collect(Collectors.toCollection(LinkedHashSet::new));
+        // Stemming...
+//        for (String rootTerm: new ArrayList<>(rootTerms)) {
+//            Stemmer stemmer = new PorterStemmer();
+//            String stemmed = stemmer.stem(rootTerm).toString();
+//            rootTerms.add(stemmed);
+//        }
+        // There's no need to stem named entities (if the term is truly a named entity..)
+        rootTerms.add(term);
+
+        // TODO: Lemmatize...
+
+        for (String rootTerm : rootTerms) {
+            variations.add(rootTerm);
+            variations.add(StringUtils.capitalize(rootTerm.toLowerCase(Locale.ROOT)));
+            variations.add(rootTerm.toLowerCase(Locale.ROOT));
+            variations.add(rootTerm.toUpperCase(Locale.ROOT));
+        }
+        return variations;
     }
 
 }

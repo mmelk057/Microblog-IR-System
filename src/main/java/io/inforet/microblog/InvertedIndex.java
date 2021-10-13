@@ -1,18 +1,9 @@
 package io.inforet.microblog;
 import io.inforet.microblog.tokenization.MicroblogTokenizer;
-import opennlp.tools.stemmer.PorterStemmer;
-import opennlp.tools.stemmer.Stemmer;
-import org.apache.commons.lang3.StringUtils;
-
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
-import java.util.LinkedList;
-import java.util.List;
-import java.util.Locale;
 import java.util.Map;
-import java.util.Set;
 
 
 public class InvertedIndex{
@@ -40,37 +31,12 @@ public class InvertedIndex{
     }
 
     /**
-     * Linguistically morph a term into various forms & permutations
-     * @param term Term to pre-process
-     * @return A list of term variations
-     */
-    private Collection<String> normalize(String term) {
-        Set<String> variations = new LinkedHashSet<>();
-        List<String> rootTerms = new LinkedList<>();
-        // Original...
-        rootTerms.add(term);
-        // Stemming...
-        Stemmer stemmer = new PorterStemmer();
-        String stemmed = stemmer.stem(term).toString();
-        rootTerms.add(stemmed);
-        // TODO: Lemmatize...
-
-        for (String rootTerm : rootTerms) {
-            variations.add(rootTerm);
-            variations.add(StringUtils.capitalize(rootTerm.toLowerCase(Locale.ROOT)));
-            variations.add(rootTerm.toLowerCase(Locale.ROOT));
-            variations.add(rootTerm.toUpperCase(Locale.ROOT));
-        }
-        return variations;
-    }
-
-    /**
      * Filters an existing index by a collection of stop words
      * @param stopWords List of stop words
      */
     public void filterStopWords(Collection<String> stopWords) {
         for (String stopWord: stopWords) {
-            for (String stopWordVariation : normalize(stopWord)) {
+            for (String stopWordVariation : tokenizer.normalize(stopWord)) {
                 index.remove(stopWordVariation);
             }
         }
@@ -109,10 +75,7 @@ public class InvertedIndex{
      * @return Term frequency of the specified document
      */
     public int getTermFrequency(String term, String docID) {
-        if (index.containsKey(term)) {
-            return getDocumentList(term).get(docID);
-        }
-        return 0;
+        return getDocumentList(term).get(docID);
     }
 
     /**
@@ -130,25 +93,10 @@ public class InvertedIndex{
      * @return Mapping of documents to their associated term frequencies
      */
     public Map<String, Integer> getDocumentList(String term) {
-        Map<String, Integer> aggregatedDocumentsList = new LinkedHashMap<>();
-        for(String termVariation : normalize(term)) {
-            if (index.containsKey(termVariation)) {
-                Map<String, Integer> currentTermDocList = index.get(termVariation);
-                for (Map.Entry<String, Integer> termDocument : currentTermDocList.entrySet()) {
-                    if (!aggregatedDocumentsList.containsKey(termDocument.getKey())) {
-                        aggregatedDocumentsList.put(termDocument.getKey(), termDocument.getValue());
-                    } else {
-                        Integer oldDocumentFreq = aggregatedDocumentsList.get(termDocument.getKey());
-                        // Basically, all terms variations are ASSUMED to be umbrellaed under a single term.
-                        // (i.e., 'Stop' vs 'stop' are the same term...)
-                        // If a document exists under another variation with a given document frequency,
-                        // simply this variation's document frequency to it.
-                        aggregatedDocumentsList.replace(termDocument.getKey(), oldDocumentFreq + termDocument.getValue());
-                    }
-                }
-            }
+        if (index.containsKey(term)) {
+            return index.get(term);
         }
-        return aggregatedDocumentsList;
+        return new LinkedHashMap<>();
     }
 
     public int getTotalNumberOfDocuments() {

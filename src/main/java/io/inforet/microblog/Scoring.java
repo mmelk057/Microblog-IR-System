@@ -6,121 +6,107 @@ import java.util.*;
 
 public class Scoring {
 
-    // Note the assignment instructions speak of a modified tf-idf weighting scheme for query terms: w_iq = (0.5 + 0.5 tf_iq)∙idf_i
-    private static double weightQueryTerm(int totalNumberOfDocuments, int documentFrequency, int termFrequency) {
-        double weightedTermFrequency = (0.5 + 0.5 * weightTermFrequency(termFrequency));
-        double inverseDocumentFrequency = calculateInverseDocumentFrequency(totalNumberOfDocuments, documentFrequency);
+    /**
+     * Weigh query term using a modified tf-idf weighting scheme for query terms:
+     * w_iq = (0.5 + 0.5 tf_iq)∙idf_i
+     * @param totalNumberOfDocuments Total # of documents in the collection
+     * @param documentFrequency # of documents that the query term appears in
+     * @param termFrequency frequency that the query term appears in the query itself
+     * @return Weighting for a given query term
+     */
+    private static double weighQueryTerm(double totalNumberOfDocuments, double documentFrequency, double termFrequency) {
+        double weightedTermFrequency = 0.5 + (0.5 * adjustTermFrequency(termFrequency));
+        // Calculate the IDF (inverse document frequency),
+        // a measurement that bias' towards unique terms
+        double inverseDocumentFrequency = Math.log10(totalNumberOfDocuments / documentFrequency);
         return weightedTermFrequency * inverseDocumentFrequency;
     }
 
-    private static double weightDocumentTerm(int termFrequency) {
-        return weightTermFrequency(termFrequency);
-    }
-
-    private static double weightTermFrequency(double termFrequency) {
-        double termFrequencyWeight = 0.0;
-
-        if (termFrequency > 0) {
-            termFrequencyWeight = 1 + Math.log10(termFrequency);
-        }
-
-        return termFrequencyWeight;
-    }
-
     /**
-     * Calculates the IDF (inverse document frequency),
-     * a measurement that bias' towards unique terms
-     * @param totalNumberOfDocuments total # of documents available
-     * @param documentFrequency # of documents where a particular term is found
-     * @return IDF measure
+     * Dampens the effect of the term frequency using a logarithm scheme
+     * @param termFrequency Term frequency to adjust
+     * @return Dampened term frequency
      */
-    private static double calculateInverseDocumentFrequency(double totalNumberOfDocuments, int documentFrequency) {
-        return Math.log10(totalNumberOfDocuments / documentFrequency);
+    private static double adjustTermFrequency (double termFrequency) {
+        if (termFrequency > 0) {
+            return 1 + Math.log10(termFrequency);
+        }
+        return 0;
     }
 
-    public static List<Pair<String, Double>> cosineScore(InvertedIndex invertedIndex, String[] queryTerms) {
-        int totalNumberOfDocuments = invertedIndex.getTotalNumberOfDocuments();
+
+    public static List<Pair<String, Double>> cosineScore(String queryID, String[] queryTerms, InvertedIndex invertedIndex) {
 
         HashMap<String, Double> cosineScores = new HashMap<>();
         HashMap<String, Double> documentLengths = new HashMap<>();
-        String queryKey = "QueryVectorDistance";    // an arbitrary key
 
-        HashMap<String, Integer> termFrequencyHashMap = getTermFrequencyHashMap(queryTerms);
-        int maxTermFrequency = getMaxTermFrequency(termFrequencyHashMap);
+        // Break query terms up into their respective term frequencies within the query
+        HashMap<String, Double> termFrequencyHashMap = getTermFrequencyHashMap(queryTerms);
 
         // calculate weights while keeping track of vector distances
-        int queryTermsLength = queryTerms.length;
-        for (int i = 0; i < queryTermsLength; i++) {
-            String queryTerm = queryTerms[i];
-
-            int documentFrequency = invertedIndex.getDocumentFrequency(queryTerm);
-            int termFrequency = termFrequencyHashMap.get(queryTerm) / maxTermFrequency;
-            double weightedQueryTerm = weightQueryTerm(totalNumberOfDocuments, documentFrequency, termFrequency);
-
-            double querySum = Math.pow(weightedQueryTerm, 2);
-            Double oldQuerySum = documentLengths.get(queryKey);
-            if (oldQuerySum == null) {
-                documentLengths.put(queryKey, querySum);
+        int totalNumberOfDocuments = invertedIndex.getTotalNumberOfDocuments();
+        for (String queryTerm: queryTerms) {
+            // GET all the documents from the index where the query term is found
+            Map<String, Integer> documentList = invertedIndex.getDocumentList(queryTerm);
+            if (documentList == null || documentList.isEmpty()) {
+                // term is irrelevant to the score...
+                continue;
+            }
+            double termFrequency = termFrequencyHashMap.get(queryTerm);
+            double unnormalizedTermWeight = weighQueryTerm(totalNumberOfDocuments, documentList.size(), termFrequency);
+            // ACCUMULATE THE QUERY TERM EUCLIDEAN LENGTH COMPONENTS (USED FOR NORMALIZATION!)
+            if(!documentLengths.containsKey(queryID)) {
+                documentLengths.put(queryID, Math.pow(unnormalizedTermWeight, 2));
             } else {
-                documentLengths.put(queryKey, oldQuerySum + querySum);
+                Double oldVal = documentLengths.get(queryID);
+                documentLengths.replace(queryID, oldVal + Math.pow(unnormalizedTermWeight, 2));
             }
 
-            Map<String, Integer> documentList = invertedIndex.getDocumentList(queryTerm);
-            if (documentList == null) continue; // do not process terms that do not exist in the inverted index
+            // Scan through documents associated with the query term
+            for (Map.Entry<String, Integer> documentEntry : documentList.entrySet()) {
 
-            for (Map.Entry<String, Integer> entry : documentList.entrySet()) {
-                String docID = entry.getKey();
-
-                double weightedDocumentTerm = weightDocumentTerm(entry.getValue());
-                double cosineScore = weightedQueryTerm * weightedDocumentTerm;
-
-                double documentLength = Math.pow(weightedDocumentTerm, 2);
-
-                Double oldCosineScore = cosineScores.get(queryTerm);
-                Double oldDocumentLength = documentLengths.get(queryTerm);
-
-                if (oldCosineScore == null) {
-                    cosineScores.put(docID, cosineScore);
+                double unnormalizedDocumentTermWeight = adjustTermFrequency(documentEntry.getValue());
+                // ACCUMULATE DOCUMENT TERM EUCLIDEAN LENGTH COMPONENTS (USED FOR NORMALIZATION)
+                if (!documentLengths.containsKey(documentEntry.getKey())) {
+                    documentLengths.put(documentEntry.getKey(), Math.pow(unnormalizedDocumentTermWeight, 2));
                 } else {
-                    cosineScores.put(docID, oldCosineScore + cosineScore);
+                    Double oldVal = documentLengths.get(documentEntry.getKey());
+                    documentLengths.replace(documentEntry.getKey(), oldVal + Math.pow(unnormalizedDocumentTermWeight, 2));
                 }
 
-                if (oldDocumentLength == null) {
-                    documentLengths.put(docID, documentLength);
+                double cosineScoreComponent = unnormalizedTermWeight * unnormalizedDocumentTermWeight;
+                // ACCUMULATE QUERY-DOCUMENT SIMILARITY SCORES
+                if (!cosineScores.containsKey(documentEntry.getKey())) {
+                    cosineScores.put(documentEntry.getKey(), cosineScoreComponent);
                 } else {
-                    documentLengths.put(docID, oldDocumentLength + documentLength);
+                    Double oldVal = cosineScores.get(documentEntry.getKey());
+                    cosineScores.replace(documentEntry.getKey(), oldVal + cosineScoreComponent);
                 }
+
             }
+
         }
 
-        // normalize weights, then calculate cosine similarity score
-        for (int i = 0; i < queryTermsLength; i++) {
-            String queryTerm = queryTerms[i];
-            Map<String, Integer> documentList = invertedIndex.getDocumentList(queryTerm);
-            if (documentList == null) continue; // do not process terms that do not exist in the inverted index
-
-            for (Map.Entry<String, Integer> entry : documentList.entrySet()) {
-                String docID = entry.getKey();
-                double documentLength = documentLengths.get(docID);
-                double queryLength = documentLengths.get(queryKey);
-                double cosineScore = cosineScores.get(docID);
-
-                documentLength = Math.sqrt(documentLength);
-                queryLength = Math.sqrt(queryLength);
-                cosineScore = cosineScore / (documentLength * queryLength);
-                cosineScores.put(docID, cosineScore);
-            }
+        // (1) NORMALIZE WEIGHTS
+        double queryEuclideanLength = Math.sqrt(documentLengths.get(queryID));
+        for (Map.Entry<String, Double> documentLength : documentLengths.entrySet()) {
+            double documentEuclideanLength = Math.sqrt(documentLength.getValue());
+            // |V(q)| * |V(d)|
+            documentLengths.replace(documentLength.getKey(), queryEuclideanLength * documentEuclideanLength);
         }
 
-        // save the output to an ArrayList
-        List<Pair<String, Double>> cosineScoresList = new ArrayList<>();
-        for (Map.Entry<String, Double> entry : cosineScores.entrySet()) {
-            Pair<String, Double> pair = Pair.of(entry.getKey(), entry.getValue());
-            cosineScoresList.add(pair);
+        // (2) CALCULATE COSINE SIMILARITY SCORE
+        List<Pair<String, Double>> normalizedCosineScores = new ArrayList<>();
+        for (Map.Entry<String, Double> cosineScore : cosineScores.entrySet()) {
+            //   V(q) * V(d)
+            // ---------------
+            // |V(q)| * |V(d)|
+            double normalizationFactor = documentLengths.get(cosineScore.getKey());
+            normalizedCosineScores.add(Pair.of(cosineScore.getKey(),cosineScore.getValue() /  normalizationFactor));
         }
 
-        // sort the cosine scores by descending value
-        cosineScoresList.sort((o1, o2) -> {
+        // (3) SORT normalized cosine scores by descending value
+        normalizedCosineScores.sort((o1, o2) -> {
             if (o1.getRight() > o2.getRight()) {
                 return -1;
             } else if (o1.getRight().equals(o2.getRight())) {
@@ -130,34 +116,20 @@ public class Scoring {
             }
         });
 
-        return cosineScoresList;
+        return normalizedCosineScores;
     }
 
-    private static HashMap<String, Integer> getTermFrequencyHashMap(String[] queryTerms) {
-        HashMap<String, Integer> termCount = new HashMap<>(queryTerms.length);
-
+    private static HashMap<String, Double> getTermFrequencyHashMap(String[] queryTerms) {
+        HashMap<String, Double> termCount = new HashMap<>(queryTerms.length);
         for (String queryTerm : queryTerms) {
-            Integer count = termCount.get(queryTerm);
-
+            Double count = termCount.get(queryTerm);
             if (count == null) {
-                termCount.put(queryTerm, 1);
+                termCount.put(queryTerm, 1d);
             } else {
-                termCount.put(queryTerm, ++count);
+                termCount.put(queryTerm, count + 1);
             }
         }
-
         return termCount;
     }
 
-    private static int getMaxTermFrequency(HashMap<String, Integer> termCount) {
-        int maxTermFrequency = 0;
-
-        for (Integer termFrequency : termCount.values()) {
-            if (termFrequency > maxTermFrequency) {
-                maxTermFrequency = termFrequency;
-            }
-        }
-
-        return maxTermFrequency;
-    }
 }

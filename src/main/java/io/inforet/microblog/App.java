@@ -3,8 +3,6 @@ package io.inforet.microblog;
 import io.inforet.microblog.entities.InfoDocument;
 import io.inforet.microblog.entities.Query;
 import io.inforet.microblog.tokenization.MicroblogTokenizer;
-import opennlp.tools.stemmer.PorterStemmer;
-import opennlp.tools.stemmer.Stemmer;
 import org.apache.commons.lang3.tuple.Pair;
 
 import java.io.*;
@@ -90,8 +88,8 @@ public class App {
 
             try (BufferedWriter fileWriter = new BufferedWriter(new FileWriter(resultsFilePath))) {
                 for (Query query : parsedQueries) {
-                    String[] tokens = tokenizer.tokenizeDocument(query.getQuery());
-                    List<Pair<String, Double>> cosineScores = Scoring.cosineScore(index, tokens);
+                    String[] tokens = tokenizer.tokenizeQuery(query.getQuery());
+                    List<Pair<String, Double>> cosineScores = Scoring.cosineScore(query.getID(), tokens, index);
 
                     for (int i = 0; i < cosineScores.size(); i++) {
                         String docID = cosineScores.get(i).getLeft();
