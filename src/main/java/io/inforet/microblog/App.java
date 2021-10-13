@@ -3,6 +3,8 @@ package io.inforet.microblog;
 import io.inforet.microblog.entities.InfoDocument;
 import io.inforet.microblog.entities.Query;
 import io.inforet.microblog.tokenization.MicroblogTokenizer;
+import opennlp.tools.stemmer.PorterStemmer;
+import opennlp.tools.stemmer.Stemmer;
 import org.apache.commons.lang3.tuple.Pair;
 
 import java.io.*;
@@ -62,9 +64,9 @@ public class App {
         List<InfoDocument> parsedDocuments = (List<InfoDocument>) loadFileEntries(TREC_DATASET, TRECTools::parseCollection);
         List<Query> parsedQueries = (List<Query>) loadFileEntries(TREC_QUERIES, TRECTools::parseQueries);
         Set<String> stopWords = (Set<String>) loadFileEntries(STOP_WORDS, TRECTools::parseStopWords);
-        MicroblogTokenizer tokenizer = new MicroblogTokenizer();
 
-        InvertedIndex index = new InvertedIndex(parsedDocuments.size());
+        MicroblogTokenizer tokenizer = new MicroblogTokenizer();
+        InvertedIndex index = new InvertedIndex(parsedDocuments.size(), tokenizer);
 
         /// (3) Build Inverted Index
         for (InfoDocument document : parsedDocuments) {

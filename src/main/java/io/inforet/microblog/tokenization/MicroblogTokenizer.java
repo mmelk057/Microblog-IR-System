@@ -5,9 +5,14 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JsonMappingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.inforet.microblog.entities.RegexReplacement;
+import opennlp.tools.lemmatizer.DictionaryLemmatizer;
+import opennlp.tools.lemmatizer.Lemmatizer;
 import opennlp.tools.namefind.NameFinderME;
 import opennlp.tools.namefind.TokenNameFinder;
 import opennlp.tools.namefind.TokenNameFinderModel;
+import opennlp.tools.postag.POSModel;
+import opennlp.tools.postag.POSTagger;
+import opennlp.tools.postag.POSTaggerME;
 import opennlp.tools.tokenize.Tokenizer;
 import opennlp.tools.tokenize.TokenizerME;
 import opennlp.tools.tokenize.TokenizerModel;
@@ -30,6 +35,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
+import java.util.function.Function;
 import java.util.regex.MatchResult;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -37,6 +43,14 @@ import java.util.stream.Collectors;
 
 public class MicroblogTokenizer {
 
+    /**
+     * Lemmatization dictionary used to provide
+     */
+    private static final String LEMMATIZER_DICT = "./models/en-lemmatizer.dict";
+    /**
+     * Pre-trained model to provide parts-of-speech tagging
+     */
+    private static final String POS_TAGGER_MODEL_PATH = "./models/en-pos-maxent.bin";
     /**
      * Pre-trained model used to provide preliminary tokenization
      */
@@ -55,6 +69,8 @@ public class MicroblogTokenizer {
     private static final String LOCATION_NER_PATH = "./models/en-ner-location.bin";
 
     private final Tokenizer principalTokenizer;
+    private final Lemmatizer dictionaryLemmatizer;
+    private final POSTagger posTagger;
     private final TokenNameFinder personsNamedEntityFinder;
     private final TokenNameFinder orgNamedEntityFinder;
     private final TokenNameFinder locationNamedEntityFinder;
@@ -62,51 +78,68 @@ public class MicroblogTokenizer {
     private static final String REGEX_TOKEN_REPLACEMENTS = "replacements.json";
 
     public MicroblogTokenizer() {
-        this.principalTokenizer = buildTokenizer(TOKEN_MODEL_PATH);
-        this.personsNamedEntityFinder = buildTokenNameFinder(PERSON_NER_PATH);
-        this.orgNamedEntityFinder = buildTokenNameFinder(ORG_NER_PATH);
-        this.locationNamedEntityFinder = buildTokenNameFinder(LOCATION_NER_PATH);
-    }
+        RuntimeException streamParseFailure = new IllegalArgumentException("Failed to parse model stream!");
 
-    private Tokenizer buildTokenizer(String relModelPath) {
-        URL fullModelPath = Thread.currentThread().getContextClassLoader().getResource(relModelPath);
-        if (fullModelPath == null) {
-            return null;
-        }
-        try {
-            String decodedPath = URLDecoder.decode(fullModelPath.getPath(), "UTF-8");
-            try (InputStream modelInput = new FileInputStream(decodedPath)) {
-                TokenizerModel model = new TokenizerModel(modelInput);
+        this.principalTokenizer = loadModel(TOKEN_MODEL_PATH, stream -> {
+            try {
+                TokenizerModel model = new TokenizerModel(stream);
                 return new TokenizerME(model);
-            } catch (FileNotFoundException ex) {
-                throw new IllegalArgumentException(String.format("Failed to locate tokenizer model path: '%s'", fullModelPath.getPath()));
             } catch (IOException ex) {
-                throw new IllegalArgumentException(String.format("Failed to read input from tokenizer model: '%s'. Cause: '%s'", fullModelPath.getPath(), ex.getCause().getMessage()));
+                throw streamParseFailure;
+            }
+        });
+
+        Function<InputStream, TokenNameFinder> nameFinderFunction = stream -> {
+            try {
+                TokenNameFinderModel model = new TokenNameFinderModel(stream);
+                return new NameFinderME(model);
+            } catch (IOException ex) {
+                throw streamParseFailure;
+            }
+        };
+
+        this.personsNamedEntityFinder = loadModel(PERSON_NER_PATH, nameFinderFunction);
+        this.orgNamedEntityFinder = loadModel(ORG_NER_PATH, nameFinderFunction);
+        this.locationNamedEntityFinder = loadModel(LOCATION_NER_PATH, nameFinderFunction);
+
+
+        this.dictionaryLemmatizer = loadModel(LEMMATIZER_DICT, stream -> {
+            try {
+                return new DictionaryLemmatizer(stream);
+            } catch (IOException ex) {
+                throw streamParseFailure;
+            }
+        });
+
+        this.posTagger = loadModel(POS_TAGGER_MODEL_PATH, stream -> {
+            try {
+                POSModel model = new POSModel(stream);
+                return new POSTaggerME(model);
+            } catch (IOException ex) {
+                throw streamParseFailure;
+            }
+        });
+    }
+
+    private <T> T loadModel(String relModelPath, Function<InputStream, T> modelGen) {
+        URL url = Thread.currentThread().getContextClassLoader().getResource(relModelPath);
+        if (url == null) {
+            throw new IllegalArgumentException(String.format("Failed to locate model path: '%s'", relModelPath));
+        }
+        try {
+            String decodedURL = URLDecoder.decode(url.getPath(), "UTF-8");
+            try (InputStream fileStream = new FileInputStream(decodedURL)) {
+                return modelGen.apply(fileStream);
+            } catch (FileNotFoundException ex) {
+                throw new IllegalArgumentException(String.format("Failed to locate the following file: '%s'", decodedURL), ex);
+            } catch (IOException ex) {
+                throw new IllegalArgumentException(String.format("Failed to read the following file: '%s'", decodedURL), ex);
             }
         } catch (UnsupportedEncodingException ex) {
-            throw new IllegalArgumentException(String.format("Failed to decode the following URL: '%s'", fullModelPath.getPath()));
+            throw new IllegalArgumentException(String.format("Failed to decode the following path: '%s'. Cause: '%s'", url.getPath(), ex.getCause().getMessage()), ex);
         }
     }
 
-    private NameFinderME buildTokenNameFinder(String relModelPath) {
-        URL fullModelPath = Thread.currentThread().getContextClassLoader().getResource(relModelPath);
-        if (fullModelPath == null) {
-            return null;
-        }
-        try {
-            String decodedPath = URLDecoder.decode(fullModelPath.getPath(), "UTF-8");
-            try (InputStream modelInput = new FileInputStream(decodedPath)) {
-                TokenNameFinderModel model = new TokenNameFinderModel(modelInput);
-                return new NameFinderME(model);
-            } catch (FileNotFoundException ex) {
-                throw new IllegalArgumentException(String.format("Failed to locate token name finder path: '%s'", fullModelPath.getPath()));
-            } catch (IOException ex) {
-                throw new IllegalArgumentException(String.format("Failed to read input from token name finder model: '%s'. Cause '%s'", fullModelPath.getPath(), ex.getCause().getMessage()));
-            }
-        } catch (UnsupportedEncodingException ex) {
-            throw new IllegalArgumentException(String.format("Failed to decode the following URL: '%s'", fullModelPath.getPath()));
-        }
-    }
 
     /**
      * Returns a list of tokens from the provided document content

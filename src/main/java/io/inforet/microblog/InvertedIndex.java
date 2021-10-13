@@ -1,10 +1,15 @@
 package io.inforet.microblog;
+import io.inforet.microblog.tokenization.MicroblogTokenizer;
+import opennlp.tools.stemmer.PorterStemmer;
+import opennlp.tools.stemmer.Stemmer;
 import org.apache.commons.lang3.StringUtils;
 
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
+import java.util.LinkedList;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
@@ -24,12 +29,14 @@ public class InvertedIndex{
      *
      *
      */
+    private MicroblogTokenizer tokenizer;
     private Map<String, Map<String, Integer>> index;
     private final int totalNumberOfDocuments;
 
-    public InvertedIndex(int totalNumberOfDocuments){
+    public InvertedIndex(int totalNumberOfDocuments, MicroblogTokenizer tokenizer){
         index = new HashMap<>();
         this.totalNumberOfDocuments = totalNumberOfDocuments;
+        this.tokenizer = tokenizer;
     }
 
     /**
@@ -39,11 +46,21 @@ public class InvertedIndex{
      */
     private Collection<String> normalize(String term) {
         Set<String> variations = new LinkedHashSet<>();
-        // TODO: ADD MORE VARIATIONS
-        variations.add(term);
-        variations.add(StringUtils.capitalize(term.toLowerCase(Locale.ROOT)));
-        variations.add(term.toLowerCase(Locale.ROOT));
-        variations.add(term.toUpperCase(Locale.ROOT));
+        List<String> rootTerms = new LinkedList<>();
+        // Original...
+        rootTerms.add(term);
+        // Stemming...
+        Stemmer stemmer = new PorterStemmer();
+        String stemmed = stemmer.stem(term).toString();
+        rootTerms.add(stemmed);
+        // TODO: Lemmatize...
+
+        for (String rootTerm : rootTerms) {
+            variations.add(rootTerm);
+            variations.add(StringUtils.capitalize(rootTerm.toLowerCase(Locale.ROOT)));
+            variations.add(rootTerm.toLowerCase(Locale.ROOT));
+            variations.add(rootTerm.toUpperCase(Locale.ROOT));
+        }
         return variations;
     }
 
