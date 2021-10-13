@@ -34,7 +34,13 @@ public class Scoring {
         return 0;
     }
 
-
+    /**
+     * Calculates the cosine similarity score of the query with every document
+     * in the inverted index that at least one of the query terms appears in
+     * @param invertedIndex an inverted index
+     * @param queryTerms a query
+     * @return A list of cosine scores for the query
+     */
     public static List<Pair<String, Double>> cosineScore(String queryID, String[] queryTerms, InvertedIndex invertedIndex) {
 
         HashMap<String, Double> cosineScores = new HashMap<>();
@@ -42,6 +48,7 @@ public class Scoring {
 
         // Break query terms up into their respective term frequencies within the query
         HashMap<String, Double> termFrequencyHashMap = getTermFrequencyHashMap(queryTerms);
+        double maxTermFrequency = getMaxTermFrequency(termFrequencyHashMap);
 
         // calculate weights while keeping track of vector distances
         int totalNumberOfDocuments = invertedIndex.getTotalNumberOfDocuments();
@@ -53,7 +60,9 @@ public class Scoring {
                 continue;
             }
             double termFrequency = termFrequencyHashMap.get(queryTerm);
-            double unnormalizedTermWeight = weighQueryTerm(totalNumberOfDocuments, documentList.size(), termFrequency);
+
+            // Further dampen the query term by multiplying it with the inverse of the maximum term frequency in the query
+            double unnormalizedTermWeight = maxTermFrequency * weighQueryTerm(totalNumberOfDocuments, documentList.size(), termFrequency);
             // ACCUMULATE THE QUERY TERM EUCLIDEAN LENGTH COMPONENTS (USED FOR NORMALIZATION!)
             if(!documentLengths.containsKey(queryID)) {
                 documentLengths.put(queryID, Math.pow(unnormalizedTermWeight, 2));
@@ -119,6 +128,11 @@ public class Scoring {
         return normalizedCosineScores;
     }
 
+    /**
+     * Calculate the frequency of every term in the query
+     * @param queryTerms a query
+     * @return A HashMap mapping query terms to their frequency
+     */
     private static HashMap<String, Double> getTermFrequencyHashMap(String[] queryTerms) {
         HashMap<String, Double> termCount = new HashMap<>(queryTerms.length);
         for (String queryTerm : queryTerms) {
@@ -130,6 +144,23 @@ public class Scoring {
             }
         }
         return termCount;
+    }
+
+    /**
+     * Calculate the maximum term frequency in the HashMap
+     * @param termCount a HashMap mapping query terms to their frequency
+     * @return The maximum term frequency in the HashMap
+     */
+    private static double getMaxTermFrequency(HashMap<String, Double> termCount) {
+        double maxTermFrequency = 0;
+
+        for (Double termFrequency : termCount.values()) {
+            if (termFrequency > maxTermFrequency) {
+                maxTermFrequency = termFrequency;
+            }
+        }
+
+        return maxTermFrequency;
     }
 
 }
