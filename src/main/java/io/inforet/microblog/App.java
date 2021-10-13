@@ -25,6 +25,7 @@ public class App {
     public static final String TREC_DATASET = "trec-dataset.txt";
     public static final String TREC_QUERIES = "trec-queries.xml";
     public static final String STOP_WORDS = "stop-words.txt";
+    public static final int MAX_QUERY_RETURN_SIZE = 1000;
 
     /**
      * Parses a generic list of entries from a given fileName
@@ -91,7 +92,10 @@ public class App {
                     String[] tokens = tokenizer.tokenizeDocument(query.getQuery());
                     List<Pair<String, Double>> cosineScores = Scoring.cosineScore(index, tokens);
 
-                    for (int i = 0; i < cosineScores.size(); i++) {
+                    int queryReturnSize = cosineScores.size();
+                    if (queryReturnSize > MAX_QUERY_RETURN_SIZE) queryReturnSize = MAX_QUERY_RETURN_SIZE;
+
+                    for (int i = 0; i < queryReturnSize; i++) {
                         String docID = cosineScores.get(i).getLeft();
                         double cosineScore = cosineScores.get(i).getRight();
 
