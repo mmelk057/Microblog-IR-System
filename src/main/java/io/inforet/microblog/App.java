@@ -12,10 +12,7 @@ import java.nio.file.Files;
 import java.nio.file.InvalidPathException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.util.Collection;
-import java.util.LinkedList;
-import java.util.List;
-import java.util.Set;
+import java.util.*;
 import java.util.function.Function;
 
 public class App {
@@ -43,6 +40,20 @@ public class App {
         return parsedDocuments != null ? parsedDocuments : new LinkedList<>();
     }
 
+    /**
+     * Sorts a list of queries by query id
+     * @param o1 a query
+     * @param o2 another query
+     * @return A sorted list of queries
+     */
+    public static Comparator<Query> ALPHABETICAL_ORDER = (o1, o2) -> {
+        int result = String.CASE_INSENSITIVE_ORDER.compare(o1.getID(), o2.getID());
+        if (result == 0) {
+            result = o1.getID().compareTo(o2.getID());
+        }
+        return result;
+
+    };
 
     public static void main(String[] args) {
         // (1) Parse the directory argument where the TREC results file will reside
@@ -78,7 +89,10 @@ public class App {
         // (4) Filter stop words
         index.filterStopWords(stopWords);
 
-        // (5) Generate a TREC results file derived from a list of documents scored against a set of executed queries
+        // (5) Sort parsed queries by id
+        parsedQueries.sort(ALPHABETICAL_ORDER);
+
+        // (6) Generate a TREC results file derived from a list of documents scored against a set of executed queries
         try {
             String decodedDirPath = URLDecoder.decode(outputPath, "UTF-8");
             File directoryObj = new File(outputPath);
@@ -92,6 +106,7 @@ public class App {
                     String[] tokens = tokenizer.tokenizeDocument(query.getQuery());
                     List<Pair<String, Double>> cosineScores = Scoring.cosineScore(index, tokens);
 
+                    // Limit the query return size
                     int queryReturnSize = cosineScores.size();
                     if (queryReturnSize > MAX_QUERY_RETURN_SIZE) queryReturnSize = MAX_QUERY_RETURN_SIZE;
 
