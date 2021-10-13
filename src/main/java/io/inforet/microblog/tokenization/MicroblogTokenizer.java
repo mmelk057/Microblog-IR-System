@@ -187,7 +187,7 @@ public class MicroblogTokenizer {
             // PHASE 2 : CLEAN TOKENS
             // '#' prefix has a distinct meaning
             // '@' prefix has a distinct meaning
-            String strippedToken = rawTokens[i].replaceAll("[^#@1-9a-zA-Z]+", StringUtils.EMPTY);
+            String strippedToken = rawTokens[i].replaceAll("[^#@0-9a-zA-Z]+", StringUtils.EMPTY);
             strippedToken = StringUtils.stripEnd(strippedToken, "#@");
             if (strippedToken.length() <= 1) {
                 continue;
@@ -403,10 +403,8 @@ public class MicroblogTokenizer {
 //            String stemmed = stemmer.stem(rootTerm).toString();
 //            rootTerms.add(stemmed);
 //        }
-        // There's no need to stem named entities (if the term is truly a named entity..)
+        // There's no need to stem named entities (if the term is truly a named entity...)
         rootTerms.add(term);
-
-        // TODO: Lemmatize...
 
         for (String rootTerm : rootTerms) {
             variations.add(rootTerm);
