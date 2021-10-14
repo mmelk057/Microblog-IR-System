@@ -188,7 +188,7 @@ public class MicroblogTokenizer {
         String[] finalTokensList = applyReplacements(strippedTokens.toArray(new String[0]));
 
         // PHASE 5 : Named entity recognition
-        return coalesceNameEntities(finalTokensList, 0.7, 3);
+        return coalesceNameEntities(finalTokensList, 0.75, 3);
     }
 
     /**

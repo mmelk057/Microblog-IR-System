@@ -2,9 +2,12 @@ package io.inforet.microblog;
 
 import io.inforet.microblog.entities.Query;
 import io.inforet.microblog.tokenization.MicroblogTokenizer;
+import opennlp.tools.util.Span;
+import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.tuple.Pair;
 
 import java.util.*;
+import java.util.stream.Collectors;
 
 public class Scoring {
 
@@ -53,12 +56,23 @@ public class Scoring {
      */
     private Map<String, Double> assignQueryTermWeights(String query, double expansionWeightFactor) {
         Map<String, Double> weightedQueryTerms = new LinkedHashMap<>();
+        // ASSUMPTION : preliminaryTokens have been adjusted to include named entities
         String[] preliminaryTokens = tokenizer.tokenizeDocument(query);
 
         // ASSIGN WEIGHTS TO PRELIMINARY TOKENS
-        for (String token: preliminaryTokens) {
-            // EQUAL WEIGHT!
-            weightedQueryTerms.put(token, 1d);
+        // Since the tokenization process coalesces multi-length tokens already,
+        // the following stage is to detect singular proper nouns from our set of tokens
+        List<Integer> singleProperNouns = tokenizer.findNamedEntities(preliminaryTokens)
+                                                .stream()
+                                                .filter(span -> ((span.getEnd() - span.getStart()) == 1))
+                                                .map(Span::getStart).collect(Collectors.toList());
+        for (int i = 0; i < preliminaryTokens.length; i++) {
+            // Proper nouns are weighted 1.2x higher than non-proper nouns
+            if (singleProperNouns.contains(i) || preliminaryTokens[i].split(StringUtils.SPACE).length > 1) {
+                weightedQueryTerms.put(preliminaryTokens[i], 1.2d);
+            } else {
+                weightedQueryTerms.put(preliminaryTokens[i], 1d);
+            }
         }
 
         // APPLY QUERY EXPANSION!
@@ -80,7 +94,7 @@ public class Scoring {
      */
     public List<Pair<String, Double>> cosineScore(Query query, InvertedIndex invertedIndex) {
 
-        Map<String, Double> queryTermWeights = assignQueryTermWeights(query.getQuery(), 0.75);
+        Map<String, Double> queryTermWeights = assignQueryTermWeights(query.getQuery(), 0.65);
 
         HashMap<String, Double> cosineScores = new HashMap<>();
         HashMap<String, Double> documentLengths = new HashMap<>();
