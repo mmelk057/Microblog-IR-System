@@ -47,9 +47,11 @@ public class TRECTools {
                     // IMPORTANT: Do not modify the content at this stage (it might cause issues with tokenization)!
                     // Simply remove surrounding whitespace
                     String content = StringUtils.stripToEmpty(segments[1]);
-                    // Filter out retweets...
+                    // Filter out retweets & mentions...
                     // https://trec.nist.gov/pubs/trec20/papers/MICROBLOG.OVERVIEW.pdf
-                    if (!Arrays.asList(content.split(StringUtils.SPACE)).contains("RT")) {
+                    List<String> simpleDelim  = Arrays.asList(content.split(StringUtils.SPACE));
+                    if (!simpleDelim.contains("RT") &&
+                            !simpleDelim.contains("MT")) {
                         parsedCollection.add(new InfoDocument(filteredID, content));
                     }
                 }
