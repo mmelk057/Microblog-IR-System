@@ -103,8 +103,9 @@ public class App {
 
             try (BufferedWriter fileWriter = new BufferedWriter(new FileWriter(resultsFilePath))) {
                 for (Query query : parsedQueries) {
-                    String[] tokens = tokenizer.tokenizeQuery(query.getQuery());
-                    List<Pair<String, Double>> cosineScores = Scoring.cosineScore(query.getID(), tokens, index);
+
+                    Scoring scoringInst = new Scoring(tokenizer);
+                    List<Pair<String, Double>> cosineScores = scoringInst.cosineScore(query, index);
 
                     // Limit the query return size
                     int queryReturnSize = cosineScores.size();

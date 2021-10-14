@@ -145,21 +145,6 @@ public class MicroblogTokenizer {
     }
 
     /**
-     * Returns a list of tokens from the provided query content
-     * @param query Represented as a document-unit (i.e., sentence, paragraph, chapter, etc.)
-     * @return List of query tokens
-     */
-    public String[] tokenizeQuery(String query) {
-        String[] sanitizedTokens = tokenizeDocument(query);
-        // APPLY QUERY EXPANSION!
-        List<String> expandedQuery = new ArrayList<>();
-        for(String sanitizedToken : sanitizedTokens) {
-            expandedQuery.addAll(normalize(sanitizedToken));
-        }
-        return expandedQuery.toArray(new String[0]);
-    }
-
-    /**
      * Returns a list of tokens from the provided document content
      * @param document Represented as a document-unit (i.e, sentence, paragraph, chapter, etc.)
      * @return List of tokens
@@ -203,7 +188,21 @@ public class MicroblogTokenizer {
         String[] finalTokensList = applyReplacements(strippedTokens.toArray(new String[0]));
 
         // PHASE 5 : Named entity recognition
-        return namedEntityRecognition(finalTokensList, 0.7, 3);
+        return coalesceNameEntities(finalTokensList, 0.7, 3);
+    }
+
+    /**
+     * Identifies a list of named entities from a list of tokens
+     * @param tokens List of tokens
+     * @return List of name entity spans, with positions derived from the provided list of tokens
+     */
+    public List<Span> findNamedEntities(String[] tokens) {
+        TokenNameFinder[] nameFinders = { personsNamedEntityFinder, locationNamedEntityFinder, orgNamedEntityFinder };
+        List<Span> foundEntities = new ArrayList<>();
+        for(TokenNameFinder nameFinder: nameFinders) {
+            foundEntities.addAll(Arrays.stream(nameFinder.find(tokens)).collect(Collectors.toList()));
+        }
+        return foundEntities;
     }
 
     /**
@@ -216,14 +215,9 @@ public class MicroblogTokenizer {
      * @param entityLenThreshold Maximum named entity length
      * @return List of tokens
      */
-    private String[] namedEntityRecognition(String[] tokens, double probabilityThreshold, int entityLenThreshold) {
-        TokenNameFinder[] nameFinders = { personsNamedEntityFinder, locationNamedEntityFinder, orgNamedEntityFinder };
+    public String[] coalesceNameEntities(String[] tokens, double probabilityThreshold, int entityLenThreshold) {
         String[] coalescedTokens = Arrays.stream(tokens).toArray(String[]::new);
-
-        List<Span> foundEntities = new ArrayList<>();
-        for(TokenNameFinder nameFinder: nameFinders) {
-            foundEntities.addAll(Arrays.stream(nameFinder.find(coalescedTokens)).collect(Collectors.toList()));
-        }
+        List<Span> foundEntities = findNamedEntities(coalescedTokens);
         // SORT the named entities by their span length && probabilities
         // Shorter the span, higher the priority (Assumption: rarely do large aggregation of words form a meaningful named entity)
         // Larger the probability, higher the priority
@@ -397,17 +391,9 @@ public class MicroblogTokenizer {
         Set<String> variations = new LinkedHashSet<>();
         // Original...
         Set<String> rootTerms = Arrays.stream(term.split(StringUtils.SPACE)).collect(Collectors.toCollection(LinkedHashSet::new));
-        // Stemming...
-//        for (String rootTerm: new ArrayList<>(rootTerms)) {
-//            Stemmer stemmer = new PorterStemmer();
-//            String stemmed = stemmer.stem(rootTerm).toString();
-//            rootTerms.add(stemmed);
-//        }
-        // There's no need to stem named entities (if the term is truly a named entity...)
         rootTerms.add(term);
 
         for (String rootTerm : rootTerms) {
-            variations.add(rootTerm);
             variations.add(StringUtils.capitalize(rootTerm.toLowerCase(Locale.ROOT)));
             variations.add(rootTerm.toLowerCase(Locale.ROOT));
             variations.add(rootTerm.toUpperCase(Locale.ROOT));

@@ -11,21 +11,18 @@ import org.xml.sax.SAXException;
 import javax.xml.parsers.DocumentBuilderFactory;
 import javax.xml.parsers.ParserConfigurationException;
 import java.io.BufferedReader;
-import java.io.BufferedWriter;
-import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.FileReader;
-import java.io.FileWriter;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.UnsupportedEncodingException;
 import java.net.URLDecoder;
+import java.util.Arrays;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Set;
 import java.util.TreeSet;
-import java.util.UUID;
 
 public class TRECTools {
 
@@ -49,7 +46,12 @@ public class TRECTools {
                     String filteredID = StringUtils.stripToEmpty(segments[0]).replaceAll("[^0-9]", "");
                     // IMPORTANT: Do not modify the content at this stage (it might cause issues with tokenization)!
                     // Simply remove surrounding whitespace
-                    parsedCollection.add(new InfoDocument(filteredID, StringUtils.stripToEmpty(segments[1])));
+                    String content = StringUtils.stripToEmpty(segments[1]);
+                    // Filter out retweets...
+                    // https://trec.nist.gov/pubs/trec20/papers/MICROBLOG.OVERVIEW.pdf
+                    if (!Arrays.asList(content.split(StringUtils.SPACE)).contains("RT")) {
+                        parsedCollection.add(new InfoDocument(filteredID, content));
+                    }
                 }
             } catch (FileNotFoundException ex) {
                 throw new IllegalArgumentException(String.format("The following file cannot be located: '%s'", filePath));

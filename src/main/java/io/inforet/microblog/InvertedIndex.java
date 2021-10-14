@@ -39,6 +39,7 @@ public class InvertedIndex{
             for (String stopWordVariation : tokenizer.normalize(stopWord)) {
                 index.remove(stopWordVariation);
             }
+            index.remove(stopWord);
         }
     }
 

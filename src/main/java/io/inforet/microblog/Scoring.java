@@ -1,10 +1,18 @@
 package io.inforet.microblog;
 
+import io.inforet.microblog.entities.Query;
+import io.inforet.microblog.tokenization.MicroblogTokenizer;
 import org.apache.commons.lang3.tuple.Pair;
 
 import java.util.*;
 
 public class Scoring {
+
+    private final MicroblogTokenizer tokenizer;
+
+    public Scoring(MicroblogTokenizer tokenizer) {
+        this.tokenizer = tokenizer;
+    }
 
     /**
      * Weigh query term using a modified tf-idf weighting scheme for query terms:
@@ -14,7 +22,7 @@ public class Scoring {
      * @param termFrequency frequency that the query term appears in the query itself
      * @return Weighting for a given query term
      */
-    private static double weighQueryTerm(double totalNumberOfDocuments, double documentFrequency, double termFrequency) {
+    private double weighQueryTerm(double totalNumberOfDocuments, double documentFrequency, double termFrequency) {
         double weightedTermFrequency = 0.5 + (0.5 * adjustTermFrequency(termFrequency));
         // Calculate the IDF (inverse document frequency),
         // a measurement that bias' towards unique terms
@@ -27,39 +35,75 @@ public class Scoring {
      * @param termFrequency Term frequency to adjust
      * @return Dampened term frequency
      */
-    private static double adjustTermFrequency (double termFrequency) {
+    private double adjustTermFrequency (double termFrequency) {
         if (termFrequency > 0) {
             return 1 + Math.log10(termFrequency);
         }
         return 0;
     }
 
+    /**
+     * Tokenize a provided query and assign a weight to each term where
+     * 0 <= weight <= 1.
+     * @param query Query to parse
+     * @param expansionWeightFactor A query term may be expanded to several linguistic forms - this value specifies
+     *                              the factor in which the derived linguistic forms should be weighed, relative
+     *                              to their root form ( 0 <= value <= 1 )
+     * @return List of weighted query terms
+     */
+    private Map<String, Double> assignQueryTermWeights(String query, double expansionWeightFactor) {
+        Map<String, Double> weightedQueryTerms = new LinkedHashMap<>();
+        String[] preliminaryTokens = tokenizer.tokenizeDocument(query);
 
-    public static List<Pair<String, Double>> cosineScore(String queryID, String[] queryTerms, InvertedIndex invertedIndex) {
+        // ASSIGN WEIGHTS TO PRELIMINARY TOKENS
+        for (String token: preliminaryTokens) {
+            // EQUAL WEIGHT!
+            weightedQueryTerms.put(token, 1d);
+        }
+
+        // APPLY QUERY EXPANSION!
+        for(String prelimToken : preliminaryTokens) {
+            for (String normalizedForm: tokenizer.normalize(prelimToken)) {
+                weightedQueryTerms.computeIfAbsent(normalizedForm, term -> weightedQueryTerms.get(prelimToken) * expansionWeightFactor);
+            }
+        }
+
+        return weightedQueryTerms;
+    }
+
+
+    public List<Pair<String, Double>> cosineScore(Query query, InvertedIndex invertedIndex) {
+
+        Map<String, Double> queryTermWeights = assignQueryTermWeights(query.getQuery(), 0.75);
 
         HashMap<String, Double> cosineScores = new HashMap<>();
         HashMap<String, Double> documentLengths = new HashMap<>();
 
         // Break query terms up into their respective term frequencies within the query
-        HashMap<String, Double> termFrequencyHashMap = getTermFrequencyHashMap(queryTerms);
+        HashMap<String, Double> termFrequencyHashMap = getTermFrequencyHashMap(queryTermWeights.keySet().toArray(new String[0]));
 
         // calculate weights while keeping track of vector distances
         int totalNumberOfDocuments = invertedIndex.getTotalNumberOfDocuments();
-        for (String queryTerm: queryTerms) {
+
+        for (Map.Entry<String, Double> queryTermWeighted :  queryTermWeights.entrySet()) {
             // GET all the documents from the index where the query term is found
-            Map<String, Integer> documentList = invertedIndex.getDocumentList(queryTerm);
+            Map<String, Integer> documentList = invertedIndex.getDocumentList(queryTermWeighted.getKey());
             if (documentList == null || documentList.isEmpty()) {
                 // term is irrelevant to the score...
                 continue;
             }
-            double termFrequency = termFrequencyHashMap.get(queryTerm);
-            double unnormalizedTermWeight = weighQueryTerm(totalNumberOfDocuments, documentList.size(), termFrequency);
+            double termFrequency = termFrequencyHashMap.get(queryTermWeighted.getKey());
+            // STRATEGY:
+            // Each query term has a different weight. Proper nouns are deemed as first-class citizens - their normalized forms as well.
+            // Prepositions, articles, common nouns are deemed as less important -> they are secondary to the information need.
+            double unnormalizedTermWeight = queryTermWeighted.getValue() * weighQueryTerm(totalNumberOfDocuments, documentList.size(), termFrequency);
+
             // ACCUMULATE THE QUERY TERM EUCLIDEAN LENGTH COMPONENTS (USED FOR NORMALIZATION!)
-            if(!documentLengths.containsKey(queryID)) {
-                documentLengths.put(queryID, Math.pow(unnormalizedTermWeight, 2));
+            if(!documentLengths.containsKey(query.getID())) {
+                documentLengths.put(query.getID(), Math.pow(unnormalizedTermWeight, 2));
             } else {
-                Double oldVal = documentLengths.get(queryID);
-                documentLengths.replace(queryID, oldVal + Math.pow(unnormalizedTermWeight, 2));
+                Double oldVal = documentLengths.get(query.getID());
+                documentLengths.replace(query.getID(), oldVal + Math.pow(unnormalizedTermWeight, 2));
             }
 
             // Scan through documents associated with the query term
@@ -88,7 +132,7 @@ public class Scoring {
         }
 
         // (1) NORMALIZE WEIGHTS
-        double queryEuclideanLength = Math.sqrt(documentLengths.get(queryID));
+        double queryEuclideanLength = Math.sqrt(documentLengths.get(query.getID()));
         for (Map.Entry<String, Double> documentLength : documentLengths.entrySet()) {
             double documentEuclideanLength = Math.sqrt(documentLength.getValue());
             // |V(q)| * |V(d)|
@@ -119,7 +163,7 @@ public class Scoring {
         return normalizedCosineScores;
     }
 
-    private static HashMap<String, Double> getTermFrequencyHashMap(String[] queryTerms) {
+    private HashMap<String, Double> getTermFrequencyHashMap(String[] queryTerms) {
         HashMap<String, Double> termCount = new HashMap<>(queryTerms.length);
         for (String queryTerm : queryTerms) {
             Double count = termCount.get(queryTerm);
