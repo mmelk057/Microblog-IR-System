@@ -86,8 +86,9 @@ public class Scoring {
         HashMap<String, Double> documentLengths = new HashMap<>();
 
         // Break query terms up into their respective term frequencies within the query
-        HashMap<String, Double> termFrequencyHashMap = getTermFrequencyHashMap(queryTerms);
-        double maxTermFrequency = getMaxTermFrequency(termFrequencyHashMap);
+        HashMap<String, Double> termFrequencyHashMap = getTermFrequencyHashMap(queryTermWeights.keySet().toArray(new String[0]));
+        // Calculate the maximum term frequency in the HashMap
+        Optional<Double> maxTermFrequency = termFrequencyHashMap.values().stream().max(Double::compareTo);
 
         // calculate weights while keeping track of vector distances
         int totalNumberOfDocuments = invertedIndex.getTotalNumberOfDocuments();
@@ -103,7 +104,10 @@ public class Scoring {
             // STRATEGY:
             // Each query term has a different weight. Proper nouns are deemed as first-class citizens - their normalized forms as well.
             // Prepositions, articles, common nouns are deemed as less important -> they are secondary to the information need.
-            double unnormalizedTermWeight = maxTermFrequency * queryTermWeighted.getValue() * weighQueryTerm(totalNumberOfDocuments, documentList.size(), termFrequency);
+            // Furthermore, dampen the query term by multiplying it with the inverse of the maximum term frequency in the query
+            double unnormalizedTermWeight = maxTermFrequency.orElseThrow() *
+                                            queryTermWeighted.getValue() *
+                                            weighQueryTerm(totalNumberOfDocuments, documentList.size(), termFrequency);
 
             // ACCUMULATE THE QUERY TERM EUCLIDEAN LENGTH COMPONENTS (USED FOR NORMALIZATION!)
             if(!documentLengths.containsKey(query.getID())) {
@@ -186,23 +190,6 @@ public class Scoring {
             }
         }
         return termCount;
-    }
-
-    /**
-     * Calculate the maximum term frequency in the HashMap
-     * @param termCount a HashMap mapping query terms to their frequency
-     * @return The maximum term frequency in the HashMap
-     */
-    private static double getMaxTermFrequency(HashMap<String, Double> termCount) {
-        double maxTermFrequency = 0;
-
-        for (Double termFrequency : termCount.values()) {
-            if (termFrequency > maxTermFrequency) {
-                maxTermFrequency = termFrequency;
-            }
-        }
-
-        return maxTermFrequency;
     }
 
 }
