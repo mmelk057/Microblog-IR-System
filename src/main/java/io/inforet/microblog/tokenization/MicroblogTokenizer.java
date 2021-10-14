@@ -172,9 +172,11 @@ public class MicroblogTokenizer {
             // PHASE 2 : CLEAN TOKENS
             // '#' prefix has a distinct meaning
             // '@' prefix has a distinct meaning
-            String strippedToken = rawTokens[i].replaceAll("[^#@0-9a-zA-Z]+", StringUtils.EMPTY);
+            String strippedToken = rawTokens[i].replaceAll("[^?#@0-9a-zA-Z]+", StringUtils.EMPTY);
             strippedToken = StringUtils.stripEnd(strippedToken, "#@");
-            if (strippedToken.length() <= 1) {
+            // '?' are used as a measure downstream to indicate trustworthy-ness of a tweet
+            if (strippedToken.length() <= 1 &&
+                    !strippedToken.equals("?")) {
                 continue;
             }
             strippedTokens.add(strippedToken);

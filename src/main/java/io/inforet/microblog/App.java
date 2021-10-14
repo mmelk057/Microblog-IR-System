@@ -55,6 +55,27 @@ public class App {
 
     };
 
+    /**
+     * Adjusts the document factor weight based on internal criteria like casing, special character usage, etc.
+     * 0 <= value <= 1, where 1 is the highest.
+     * @param documentFactors Mapping of document IDs to their corresponding factors
+     * @param docID Document ID
+     * @param tokens List of tokens corresponding to the provided document ID
+     */
+    public static void adjustDocumentFactor(Map<String, Double> documentFactors, String docID, String[] tokens) {
+        double weightFactor = 1.0d;
+        // '?' character weighting...
+        long qMarkCount = Arrays.stream(tokens).filter(token -> token.equals("?")).count();
+        weightFactor *= Math.pow(0.87, qMarkCount);
+
+        // TODO: ADD MORE STEPS..
+
+        // ADD ENTRY
+        if (!documentFactors.containsKey(docID)) {
+            documentFactors.put(docID, weightFactor);
+        }
+    }
+
     public static void main(String[] args) {
         // (1) Parse the directory argument where the TREC results file will reside
         String outputPath = System.getProperty(OUTPUT_FILE_ARG);
@@ -76,18 +97,23 @@ public class App {
         Set<String> stopWords = (Set<String>) loadFileEntries(STOP_WORDS, TRECTools::parseStopWords);
 
         MicroblogTokenizer tokenizer = new MicroblogTokenizer();
-        InvertedIndex index = new InvertedIndex(parsedDocuments.size(), tokenizer);
+        InvertedIndex invertedIndex = new InvertedIndex(parsedDocuments.size(), tokenizer);
 
-        /// (3) Build Inverted Index
+        /// (3) Build Inverted Index & DocumentWeightFactor Index
+        Map<String, Double> documentWeightFactor = new HashMap<>();
         for (InfoDocument document : parsedDocuments) {
             String[] tokens = tokenizer.tokenizeDocument(document.getDocument());
+
+            // Adjust the weight factor for a given document based on internal criteria (i.e., casing, special char usage,...)
+            adjustDocumentFactor(documentWeightFactor, document.getID(), tokens);
+
             for (String word : tokens) {
-                index.addTerm(word, document.getID());
+                invertedIndex.addTerm(word, document.getID());
             }
         }
 
         // (4) Filter stop words
-        index.filterStopWords(stopWords);
+        invertedIndex.filterStopWords(stopWords);
 
         // (5) Sort parsed queries by id and then reformat the id
         parsedQueries.sort(ALPHABETICAL_ORDER);
@@ -108,7 +134,7 @@ public class App {
                 for (Query query : parsedQueries) {
 
                     Scoring scoringInst = new Scoring(tokenizer);
-                    List<Pair<String, Double>> cosineScores = scoringInst.cosineScore(query, index);
+                    List<Pair<String, Double>> cosineScores = scoringInst.cosineScore(query, invertedIndex, documentWeightFactor);
 
                     // Limit the query return size
                     int queryReturnSize = cosineScores.size();

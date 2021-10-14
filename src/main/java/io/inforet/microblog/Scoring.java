@@ -90,9 +90,12 @@ public class Scoring {
      * in the inverted index that at least one of the query terms appears in
      * @param query Query to calculate cosine similarity score
      * @param invertedIndex an inverted index
+     * @param documentWeights A mapping of document IDs against their respective individual weight factor multipliers.
+     *                        This is based on criteria like casing, POS tagging, special character usage, etc.
+     *                        0 <= value <= 1
      * @return A list of cosine scores for the query
      */
-    public List<Pair<String, Double>> cosineScore(Query query, InvertedIndex invertedIndex) {
+    public List<Pair<String, Double>> cosineScore(Query query, InvertedIndex invertedIndex, Map<String, Double> documentWeights) {
 
         Map<String, Double> queryTermWeights = assignQueryTermWeights(query.getQuery(), 0.65);
 
@@ -171,7 +174,12 @@ public class Scoring {
             // ---------------
             // |V(q)| * |V(d)|
             double normalizationFactor = documentLengths.get(cosineScore.getKey());
-            normalizedCosineScores.add(Pair.of(cosineScore.getKey(),cosineScore.getValue() /  normalizationFactor));
+
+            Double documentWeightFactor = documentWeights.getOrDefault(cosineScore.getKey(), 1d);
+            assert documentWeightFactor >= 0 && documentWeightFactor <= 1;
+
+            Double finalCosineScore = ( documentWeightFactor * cosineScore.getValue() ) / normalizationFactor;
+            normalizedCosineScores.add(Pair.of(cosineScore.getKey(), finalCosineScore));
         }
 
         // (3) SORT normalized cosine scores by descending value
