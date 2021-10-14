@@ -68,11 +68,53 @@ public class App {
         long qMarkCount = Arrays.stream(tokens).filter(token -> token.equals("?")).count();
         weightFactor *= Math.pow(0.87, qMarkCount);
 
-        // TODO: ADD MORE STEPS..
+        // '@' character weighting (indicates getting another user's attention)
+        // SYSTEM DOESN'T IMPROVE
+//        long mentionCount = Arrays.stream(tokens).filter(token -> token.startsWith("@")).count();
+//        weightFactor *= Math.pow(0.89, mentionCount);
+
+//        // '#' character weighting (indicates broadcasting a message)
+        // SYSTEM DOESN'T IMPROVE
+//        long hashtagCount = Arrays.stream(tokens).filter(token -> token.startsWith("#")).count();
+//        weightFactor *= Math.pow(1.01, hashtagCount);
 
         // ADD ENTRY
         if (!documentFactors.containsKey(docID)) {
-            documentFactors.put(docID, weightFactor);
+            documentFactors.put(docID, Math.min(weightFactor, 1d));
+        } else {
+            Double oldVal = documentFactors.get(docID);
+            documentFactors.replace(docID, Math.min(oldVal * weightFactor, 1d));
+        }
+    }
+
+    /**
+     * Adjusts the document factor weight based on internal criteria like casing, special character usage, etc.
+     * 0 <= value <= 1, where 1 is the highest.
+     * @param documentFactors Mapping of document IDs to their corresponding factors
+     * @param docID Document ID
+     * @param rawDocument Raw document content
+     */
+    public static void adjustDocumentFactor(Map<String, Double> documentFactors, String docID, String rawDocument) {
+        double weightFactor = 1.0d;
+        // Special character weighting...
+        char[] rawCharacters = rawDocument.toCharArray();
+        int invalidCharCount = 0;
+        for (char rawCharacter: rawCharacters) {
+            // DOCS: https://www.fileformat.info/info/charset/UTF-8/list.htm
+            if (rawCharacter != ' ' &&
+                    ( rawCharacter < 33 || rawCharacter > 126 ) ) {
+                invalidCharCount++;
+            }
+        }
+        // Each invalid special character found has a 0.98 weighting factor
+        weightFactor = invalidCharCount != 0 ? weightFactor * Math.pow(0.99, invalidCharCount) : weightFactor;
+
+        // ADD ENTRY
+        if (!documentFactors.containsKey(docID)) {
+            documentFactors.put(docID, Math.min(weightFactor, 1d));
+        } else {
+            Double oldVal = documentFactors.get(docID);
+            documentFactors.replace(docID, Math.min(oldVal * weightFactor, 1d));
         }
     }
 
@@ -102,6 +144,9 @@ public class App {
         /// (3) Build Inverted Index & DocumentWeightFactor Index
         Map<String, Double> documentWeightFactor = new HashMap<>();
         for (InfoDocument document : parsedDocuments) {
+
+            adjustDocumentFactor(documentWeightFactor, document.getID(), document.getDocument());
+
             String[] tokens = tokenizer.tokenizeDocument(document.getDocument());
 
             // Adjust the weight factor for a given document based on internal criteria (i.e., casing, special char usage,...)
