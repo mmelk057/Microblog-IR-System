@@ -122,7 +122,7 @@ public class Scoring {
             // Each query term has a different weight. Proper nouns are deemed as first-class citizens - their normalized forms as well.
             // Prepositions, articles, common nouns are deemed as less important -> they are secondary to the information need.
             // Furthermore, dampen the query term by multiplying it with the inverse of the maximum term frequency in the query
-            double unnormalizedTermWeight = maxTermFrequency.orElseThrow() *
+            double unnormalizedTermWeight = (1 / maxTermFrequency.orElseThrow()) *
                                             queryTermWeighted.getValue() *
                                             weighQueryTerm(totalNumberOfDocuments, documentList.size(), termFrequency);
 
