@@ -50,27 +50,27 @@ public class MicroblogTokenizer {
     /**
      * Lemmatization dictionary used to provide
      */
-    private static final String LEMMATIZER_DICT = "./models/en-lemmatizer.dict";
+    private static final String LEMMATIZER_DICT = "/models/en-lemmatizer.dict";
     /**
      * Pre-trained model to provide parts-of-speech tagging
      */
-    private static final String POS_TAGGER_MODEL_PATH = "./models/en-pos-maxent.bin";
+    private static final String POS_TAGGER_MODEL_PATH = "/models/en-pos-maxent.bin";
     /**
      * Pre-trained model used to provide preliminary tokenization
      */
-    private static final String TOKEN_MODEL_PATH = "./models/en-ud-ewt-tokens.bin";
+    private static final String TOKEN_MODEL_PATH = "/models/en-ud-ewt-tokens.bin";
     /**
      * Pre-trained model used to locate named entity persons (i.e., Britney Spears)
      */
-    private static final String PERSON_NER_PATH = "./models/en-ner-person.bin";
+    private static final String PERSON_NER_PATH = "/models/en-ner-person.bin";
     /**
      * Pre-trained model used to locate named entity organizations (i.e., Apple, Hewlett-Packard)
      */
-    private static final String ORG_NER_PATH = "./models/en-ner-organization.bin";
+    private static final String ORG_NER_PATH = "/models/en-ner-organization.bin";
     /**
      * Pre-trained model used to locate named entity locations (i.e., San Francisco)
      */
-    private static final String LOCATION_NER_PATH = "./models/en-ner-location.bin";
+    private static final String LOCATION_NER_PATH = "/models/en-ner-location.bin";
 
     private final Tokenizer principalTokenizer;
     private final Lemmatizer dictionaryLemmatizer;
@@ -125,23 +125,12 @@ public class MicroblogTokenizer {
         });
     }
 
-    private <T> T loadModel(String relModelPath, Function<InputStream, T> modelGen) {
-        URL url = Thread.currentThread().getContextClassLoader().getResource(relModelPath);
-        if (url == null) {
-            throw new IllegalArgumentException(String.format("Failed to locate model path: '%s'", relModelPath));
+    private <T> T loadModel(String modelPath, Function<InputStream, T> modelGen) {
+        InputStream modelStream = getClass().getResourceAsStream(modelPath);
+        if (modelStream == null) {
+            throw new IllegalArgumentException(String.format("Failed to locate model path: '%s'", modelPath));
         }
-        try {
-            String decodedURL = URLDecoder.decode(url.getPath(), "UTF-8");
-            try (InputStream fileStream = new FileInputStream(decodedURL)) {
-                return modelGen.apply(fileStream);
-            } catch (FileNotFoundException ex) {
-                throw new IllegalArgumentException(String.format("Failed to locate the following file: '%s'", decodedURL), ex);
-            } catch (IOException ex) {
-                throw new IllegalArgumentException(String.format("Failed to read the following file: '%s'", decodedURL), ex);
-            }
-        } catch (UnsupportedEncodingException ex) {
-            throw new IllegalArgumentException(String.format("Failed to decode the following path: '%s'. Cause: '%s'", url.getPath(), ex.getCause().getMessage()), ex);
-        }
+        return modelGen.apply(modelStream);
     }
 
     /**

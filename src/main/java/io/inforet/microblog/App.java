@@ -6,7 +6,6 @@ import io.inforet.microblog.tokenization.MicroblogTokenizer;
 import org.apache.commons.lang3.tuple.Pair;
 
 import java.io.*;
-import java.net.URL;
 import java.net.URLDecoder;
 import java.nio.file.Files;
 import java.nio.file.InvalidPathException;
@@ -19,9 +18,9 @@ public class App {
 
     public static final String OUTPUT_FILE_ARG = "resultsDir";
     public static final String RESULTS_FILE_NAME = "Results.txt";
-    public static final String TREC_DATASET = "trec-dataset.txt";
-    public static final String TREC_QUERIES = "trec-queries.xml";
-    public static final String STOP_WORDS = "stop-words.txt";
+    public static final String TREC_DATASET = "/trec-dataset.txt";
+    public static final String TREC_QUERIES = "/trec-queries.xml";
+    public static final String STOP_WORDS = "/stop-words.txt";
     public static final int MAX_QUERY_RETURN_SIZE = 1000;
 
     /**
@@ -31,13 +30,12 @@ public class App {
      * @param <T> Entry type
      * @return Generic list of entries
      */
-    public static <T> Collection<T> loadFileEntries(String fileName, Function<String, Collection<T>> fileCallback) {
-        URL datasetURL = Thread.currentThread().getContextClassLoader().getResource(fileName);
-        Collection<T> parsedDocuments = null;
-        if (datasetURL != null) {
-            parsedDocuments = fileCallback.apply(datasetURL.getPath());
+    public <T> Collection<T> loadFileEntries(String fileName, Function<InputStream, Collection<T>> fileCallback) {
+        InputStream datasetURL = getClass().getResourceAsStream(fileName);
+        if (datasetURL == null) {
+            throw new IllegalArgumentException(String.format("Failed to find the following file: '%s'", fileName));
         }
-        return parsedDocuments != null ? parsedDocuments : new LinkedList<>();
+        return fileCallback.apply(datasetURL);
     }
 
     /**
@@ -46,7 +44,7 @@ public class App {
      * @param o2 another query
      * @return A sorted list of queries
      */
-    public static Comparator<Query> ALPHABETICAL_ORDER = (o1, o2) -> {
+    public Comparator<Query> ALPHABETICAL_ORDER = (o1, o2) -> {
         int result = String.CASE_INSENSITIVE_ORDER.compare(o1.getID(), o2.getID());
         if (result == 0) {
             result = o1.getID().compareTo(o2.getID());
@@ -62,7 +60,7 @@ public class App {
      * @param docID Document ID
      * @param tokens List of tokens corresponding to the provided document ID
      */
-    public static void adjustDocumentFactor(Map<String, Double> documentFactors, String docID, String[] tokens) {
+    public void adjustDocumentFactor(Map<String, Double> documentFactors, String docID, String[] tokens) {
         double weightFactor = 1.0d;
         // '?' character weighting...
         long qMarkCount = Arrays.stream(tokens).filter(token -> token.equals("?")).count();
@@ -94,7 +92,7 @@ public class App {
      * @param docID Document ID
      * @param rawDocument Raw document content
      */
-    public static void adjustDocumentFactor(Map<String, Double> documentFactors, String docID, String rawDocument) {
+    public void adjustDocumentFactor(Map<String, Double> documentFactors, String docID, String rawDocument) {
         double weightFactor = 1.0d;
         // Special character weighting...
         char[] rawCharacters = rawDocument.toCharArray();
@@ -119,6 +117,8 @@ public class App {
     }
 
     public static void main(String[] args) {
+        App app = new App();
+
         // (1) Parse the directory argument where the TREC results file will reside
         String outputPath = System.getProperty(OUTPUT_FILE_ARG);
         if (outputPath == null || outputPath.isEmpty()) {
@@ -134,9 +134,9 @@ public class App {
         }
 
         // (2) Parse internal test collection, topics & stop words documents...
-        List<InfoDocument> parsedDocuments = (List<InfoDocument>) loadFileEntries(TREC_DATASET, TRECTools::parseCollection);
-        List<Query> parsedQueries = (List<Query>) loadFileEntries(TREC_QUERIES, TRECTools::parseQueries);
-        Set<String> stopWords = (Set<String>) loadFileEntries(STOP_WORDS, TRECTools::parseStopWords);
+        List<InfoDocument> parsedDocuments = (List<InfoDocument>) app.loadFileEntries(TREC_DATASET, TRECTools::parseCollection);
+        List<Query> parsedQueries = (List<Query>) app.loadFileEntries(TREC_QUERIES, TRECTools::parseQueries);
+        Set<String> stopWords = (Set<String>) app.loadFileEntries(STOP_WORDS, TRECTools::parseStopWords);
 
         MicroblogTokenizer tokenizer = new MicroblogTokenizer();
         InvertedIndex invertedIndex = new InvertedIndex(parsedDocuments.size(), tokenizer);
@@ -145,12 +145,12 @@ public class App {
         Map<String, Double> documentWeightFactor = new HashMap<>();
         for (InfoDocument document : parsedDocuments) {
 
-            adjustDocumentFactor(documentWeightFactor, document.getID(), document.getDocument());
+            app.adjustDocumentFactor(documentWeightFactor, document.getID(), document.getDocument());
 
             String[] tokens = tokenizer.tokenizeDocument(document.getDocument());
 
             // Adjust the weight factor for a given document based on internal criteria (i.e., casing, special char usage,...)
-            adjustDocumentFactor(documentWeightFactor, document.getID(), tokens);
+            app.adjustDocumentFactor(documentWeightFactor, document.getID(), tokens);
 
             for (String word : tokens) {
                 invertedIndex.addTerm(word, document.getID());
@@ -161,7 +161,7 @@ public class App {
         invertedIndex.filterStopWords(stopWords);
 
         // (5) Sort parsed queries by id and then reformat the id
-        parsedQueries.sort(ALPHABETICAL_ORDER);
+        parsedQueries.sort(app.ALPHABETICAL_ORDER);
         for (int i = 0; i < parsedQueries.size(); i++) {
             parsedQueries.get(i).setID(String.valueOf(i + 1));      // reformat the query id to match the formatting in the evaluation file
         }
