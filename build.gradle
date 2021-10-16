@@ -8,8 +8,8 @@ plugins {
 
 group = "io.inforet.microblog"
 version = "1.0.0"
-sourceCompatibility = '1.8'
-targetCompatibility = '1.8'
+sourceCompatibility = "1.9"
+targetCompatibility = "1.9"
 
 repositories {
     // Use jcenter for resolving dependencies.
