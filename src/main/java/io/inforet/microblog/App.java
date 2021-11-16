@@ -3,7 +3,10 @@ package io.inforet.microblog;
 import io.inforet.microblog.entities.InfoDocument;
 import io.inforet.microblog.entities.Query;
 import io.inforet.microblog.tokenization.MicroblogTokenizer;
+import org.apache.commons.lang3.StringUtils;
+import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.apache.commons.lang3.tuple.Pair;
+import org.deeplearning4j.models.word2vec.Word2Vec;
 
 import java.io.*;
 import java.net.URLDecoder;
@@ -12,15 +15,54 @@ import java.nio.file.InvalidPathException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.*;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.ThreadPoolExecutor;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 
 public class App {
 
+    /**
+     * JVM Argument Key.
+     * Used to specify the absolute file system directory to output the TREC results file.
+     */
     public static final String OUTPUT_FILE_ARG = "resultsDir";
+
+    /**
+     * Name of the TREC results file to output, once each query has been processed.
+     */
     public static final String RESULTS_FILE_NAME = "Results.txt";
+
+    /**
+     * Principal dataset containing a collection of tweets, dating back to TREC's 2011 Microblog Track.
+     * SOURCE: https://trec.nist.gov/data/microblog2011.html
+     */
     public static final String TREC_DATASET = "/trec-dataset.txt";
+
+    /**
+     * Principal list of queries, dating back to TREC's 2011 Microblog Track.
+     * SOURCE: https://trec.nist.gov/data/microblog2011.html
+     */
     public static final String TREC_QUERIES = "/trec-queries.xml";
+
+    /**
+     * List of stop words to filter (common words with little distinguishable properties)
+     */
     public static final String STOP_WORDS = "/stop-words.txt";
+
+    /**
+     * News commentary corpus containing 180K+ lines of EN commentary.
+     * SOURCE: http://www.statmt.org/wmt11/translation-task.html#download
+     *
+     * The intent is to use this, or another external dataset of sorts, to train a neural network via word embeddings
+     */
+    public static final String WORD2VEC_TRAINING_DATASET = "/models/news-commentary-v6.en";
+
+    /**
+     * Maximum threshold of documents to return for each query
+     */
     public static final int MAX_QUERY_RETURN_SIZE = 1000;
 
     /**
@@ -143,30 +185,49 @@ public class App {
 
         /// (3) Build Inverted Index & DocumentWeightFactor Index
         Map<String, Double> documentWeightFactor = new HashMap<>();
-        for (InfoDocument document : parsedDocuments) {
+        for (int i = 0; i < parsedDocuments.size(); i++) {
 
-            app.adjustDocumentFactor(documentWeightFactor, document.getID(), document.getDocument());
+            InfoDocument selectedDoc = parsedDocuments.get(i);
 
-            String[] tokens = tokenizer.tokenizeDocument(document.getDocument());
+            app.adjustDocumentFactor(documentWeightFactor, selectedDoc.getID(), selectedDoc.getDocument());
+
+            // TOKENIZE DOCUMENT!
+            String[] tokens = tokenizer.tokenizeDocument(selectedDoc.getDocument());
+
+            // The tokenization process filtered any special characters, canonicalized URLs, performed various word expansions & linguistic morphologies, etc.
+            // Coalesce the outputted, SANITIZED, tokens and replace the old raw TREC content
+            parsedDocuments.set(i, new InfoDocument(selectedDoc.getID(), String.join(StringUtils.SPACE, tokens)));
 
             // Adjust the weight factor for a given document based on internal criteria (i.e., casing, special char usage,...)
-            app.adjustDocumentFactor(documentWeightFactor, document.getID(), tokens);
+            app.adjustDocumentFactor(documentWeightFactor, selectedDoc.getID(), tokens);
 
             for (String word : tokens) {
-                invertedIndex.addTerm(word, document.getID());
+                invertedIndex.addTerm(word, selectedDoc.getID());
             }
         }
 
-        // (4) Filter stop words
+        // Mapping of document IDs towards their associated content!
+        Map<String, InfoDocument> parsedDocumentMap = parsedDocuments.stream().collect(Collectors.toMap(InfoDocument::getID, Function.identity()));
+
+        // (4) BUILD Word2Vector neural net model!
+        // DOCUMENTATION: https://deeplearning4j.konduit.ai/deeplearning4j/reference/word2vec-glove-doc2vec
+        Word2Vec w2vModel = MLTools.buildWord2VecModel(parsedDocuments);
+        /**
+         * If you wish to build a word2vector model using an external dataset, here's the appropriate function:
+         *
+         * Word2Vec w2vModel = MLTools.buildWord2VecModel(WORD2VEC_TRAINING_DATASET);
+         */
+
+        // (5) Filter stop words
         invertedIndex.filterStopWords(stopWords);
 
-        // (5) Sort parsed queries by id and then reformat the id
+        // (6) Sort parsed queries by id and then reformat the id
         parsedQueries.sort(app.ALPHABETICAL_ORDER);
         for (int i = 0; i < parsedQueries.size(); i++) {
             parsedQueries.get(i).setID(String.valueOf(i + 1));      // reformat the query id to match the formatting in the evaluation file
         }
 
-        // (6) Generate a TREC results file derived from a list of documents scored against a set of executed queries
+        // (7) Generate a TREC results file derived from a list of documents scored against a set of executed queries
         try {
             String decodedDirPath = URLDecoder.decode(outputPath, "UTF-8");
             File directoryObj = new File(outputPath);
@@ -179,22 +240,119 @@ public class App {
                 for (Query query : parsedQueries) {
 
                     Scoring scoringInst = new Scoring(tokenizer);
+                    // Content-based cosine similarity (purely syntactic) scores for each document against a given query!
                     List<Pair<String, Double>> cosineScores = scoringInst.cosineScore(query, invertedIndex, documentWeightFactor);
 
                     // Limit the query return size
                     int queryReturnSize = cosineScores.size();
                     if (queryReturnSize > MAX_QUERY_RETURN_SIZE) queryReturnSize = MAX_QUERY_RETURN_SIZE;
 
-                    for (int i = 0; i < queryReturnSize; i++) {
-                        String docID = cosineScores.get(i).getLeft();
-                        double cosineScore = cosineScores.get(i).getRight();
 
+                    /**
+                     * Strategy:
+                     * Re-rank the top 'MAX_QUERY_RETURN_SIZE' documents derived from the content-based cosine similarity score (purely syntactic).
+                     * The re-ranking will be predicated on a scoring that will consist of a linear combination between:
+                     * 1. The content-based cosine similarity score
+                     * 2. Co-occurrence similarity average score (derived from the Word2Vector model)
+                     *
+                     * Score = [α * COSINE_SCORE] + [(1 - α) * CO-OCCURRENCE_SCORE]
+                     * Where 'α' (alpha), is a modulating constant
+                     */
+                    double scoringAlpha = 0.73;
+                    // List of (document ids -> final scoring)
+                    List<Pair<String, Double>> finalScoring = Collections.synchronizedList(new ArrayList<>());
+
+                    /**
+                     * To calculate the co-occurrence similarity average score, we will essentially
+                     * compare the similarity of each token from the query, against each token for all the top 1000 returned documents.
+                     * i.e.,
+                     * Query = "BBC World News"
+                     * Document = "BBC farms are opening worldwide in the news"
+                     * Score =
+                     *           ( ( [sim("BBC", "BBC") + sim("BBC", "farms") + ... + sim("BBC", "news")] / |Document| ) +
+                     *             ( [sim("World", "farms") + ... + sim("World", "news") ] / |Document| ) +
+                     *             ...
+                     *           ) / |Query|
+                     *
+                     * The intuition here is to rank documents containing lots of dissimilar terms that are not-commonly seen together,
+                     * lower! Vice-versa
+                     *
+                     * So in our example, it may be the case that "farms" is a very uncommon word, not commonly associated with
+                     * "BBC", "World", or "News", and therefore, the document as a whole is ranked lower.
+                     *
+                     * This is a fairly expensive operation to perform, so we use threading to parallelize the computations.
+                     */
+                    ThreadPoolExecutor executor = (ThreadPoolExecutor) Executors.newFixedThreadPool(10);
+                    Collection<Future<?>> futures = new LinkedList<>();
+
+                    for (int i = 0; i < queryReturnSize; i++) {
+
+                        final int positionIndex = i;
+                        // SUBMIT ASYNC TASK TO QUEUE (within Thread pool!)
+                        futures.add(executor.submit(() -> {
+
+                            String docID = cosineScores.get(positionIndex).getLeft();
+                            double cosineScore = cosineScores.get(positionIndex).getRight();
+
+                            double cooccurenceScore = 0d;
+                            // Simple delineation to fetch tokens!
+                            String[] queryComponents = query.getQuery().toLowerCase(Locale.ROOT).split(StringUtils.SPACE);
+                            String[] documentComponents = parsedDocumentMap.get(docID).getDocument().toLowerCase(Locale.ROOT).split(StringUtils.SPACE);
+
+                            for (String queryTerm : queryComponents){
+                                double currentScore = 0d;
+                                for (String documentTerm : documentComponents) {
+                                    // Co-occurrence is calculated using our trained Word2Vector model (uses word embeddings!)
+                                    double cooccurenceSimilarity = w2vModel.similarity(queryTerm, documentTerm);
+                                    if (!Double.isNaN(cooccurenceSimilarity)) {
+                                        currentScore += cooccurenceSimilarity;
+                                    }
+                                }
+                                currentScore /= documentComponents.length;
+                                cooccurenceScore += currentScore;
+                            }
+                            cooccurenceScore /= queryComponents.length;
+
+                            // Linear combination scoring system!
+                            finalScoring.add(new ImmutablePair<>(docID, (scoringAlpha * cosineScore) + ((1 - scoringAlpha) * cooccurenceScore)));
+                        }));
+                    }
+
+                    // Wait for all tasks to finish...
+                    for (Future<?> future: futures) {
+                        try {
+                            future.get();
+                        } catch (InterruptedException ex){
+                            System.out.printf("Thread has been interrupted! Reason: %s", ex.getMessage());
+                        }
+                        catch (ExecutionException ex) {
+                            System.out.printf("Thread has been faulted! Reason: %s", ex.getMessage());
+                        }
+                    }
+
+                    executor.shutdown();
+
+                    // Re-rank query results!
+                    // Highest (TOP) -> Lowest (BOTTOM)
+                    finalScoring.sort((o1, o2) -> {
+                        if (o1.getRight() > o2.getRight()) {
+                            return -1;
+                        } else if (o1.getRight().equals(o2.getRight())) {
+                            return 0;
+                        }
+                        return 1;
+                    });
+
+                    // OUTPUT!
+                    for (int i = 0; i < finalScoring.size(); i++) {
+                        Pair<String, Double> documentHead = finalScoring.get(i);
                         fileWriter.write(String.format("%s Q0 %s %d %.6f myRun\n",
                                 query.getID(),
-                                docID,
+                                documentHead.getLeft(),
                                 i + 1,
-                                cosineScore));
+                                documentHead.getRight()));
                     }
+
                 }
             } catch (IOException ex) {
                 throw new IllegalArgumentException(String.format("Failed to write to the following results file path: '%s'. Cause: '%s'", resultsFilePath, ex.getCause().getMessage()));
