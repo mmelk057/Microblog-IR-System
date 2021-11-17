@@ -300,15 +300,25 @@ public class App {
                             String[] documentComponents = parsedDocumentMap.get(docID).getDocument().toLowerCase(Locale.ROOT).split(StringUtils.SPACE);
 
                             for (String queryTerm : queryComponents){
-                                double currentScore = 0d;
+                                double currentScore = -1d;
                                 for (String documentTerm : documentComponents) {
+                                    // IGNORE STOP WORDS!!
+                                    if (stopWords.contains(documentTerm)) {
+                                        currentScore -= 0.15;
+                                        continue;
+                                    }
+
                                     // Co-occurrence is calculated using our trained Word2Vector model (uses word embeddings!)
                                     double cooccurenceSimilarity = w2vModel.similarity(queryTerm, documentTerm);
                                     if (!Double.isNaN(cooccurenceSimilarity)) {
                                         currentScore += cooccurenceSimilarity;
+                                    } else {
+                                        currentScore -= 0.1;
                                     }
                                 }
-                                currentScore /= documentComponents.length;
+                                if (documentComponents.length > 0) {
+                                    currentScore /= documentComponents.length;
+                                }
                                 cooccurenceScore += currentScore;
                             }
                             cooccurenceScore /= queryComponents.length;
